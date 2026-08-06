@@ -22,13 +22,22 @@ function normalizeEntries(entries: unknown[]): unknown {
   return entries.map((e) => normalize(e, true))
 }
 
-// A server that does not advertise a capability answers -32601; for a manifest
-// "this server exposes none" is the honest answer, not a failed test.
+// A server that does not advertise a capability answers -32601 (or, on v1, an
+// assertCapability error); for a manifest "this server exposes none" is the
+// honest answer. Anything else is a real failure and must not be swallowed into
+// an empty manifest that snapshots green.
+function isUnsupportedCapability(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  const code = (error as { code?: unknown })?.code
+  return code === -32601 || /-32601|method not found|does not support/i.test(message)
+}
+
 async function orEmpty<T>(list: Promise<T[]>): Promise<T[]> {
   try {
     return await list
-  } catch {
-    return []
+  } catch (error) {
+    if (isUnsupportedCapability(error)) return []
+    throw error
   }
 }
 

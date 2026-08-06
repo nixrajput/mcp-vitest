@@ -65,6 +65,9 @@ export class McpHarness {
           | undefined,
       } satisfies ToolCallMeta,
       enumerable: false,
+      // Redefinable: an SDK that hands back a cached result object would
+      // otherwise throw on the second call.
+      configurable: true,
     })
     return result
   }

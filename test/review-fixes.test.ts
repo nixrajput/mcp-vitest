@@ -23,6 +23,15 @@ describe('manifests on servers without every capability', () => {
     const mcp = await mcpTest(toolsOnlyServer())
     await expect(promptManifest(mcp)).resolves.toEqual([])
   })
+
+  // Tolerating an absent capability must not tolerate a broken connection:
+  // an empty manifest that snapshots green would hide the failure.
+  test('a real failure still propagates instead of snapshotting empty', async () => {
+    const mcp = await mcpTest(createV1Server())
+    const client = mcp.client as unknown as { listPrompts: () => Promise<never> }
+    client.listPrompts = () => Promise.reject(new Error('socket hang up'))
+    await expect(promptManifest(mcp)).rejects.toThrow(/socket hang up/)
+  })
 })
 
 describe('request transparency', () => {

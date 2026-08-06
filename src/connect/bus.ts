@@ -1,4 +1,4 @@
-import type { CallToolOptions, McpToolResult } from '../types.js'
+import type { CallToolOptions } from '../types.js'
 
 type Notification = { method: string; params: unknown }
 type ProgressPayload = { progress: number; total?: number; message?: string }
@@ -55,5 +55,3 @@ export function createNotificationBus(client: unknown): NotificationBus {
     }),
   }
 }
-
-export type { McpToolResult }

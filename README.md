@@ -57,7 +57,7 @@ Testing an MCP server usually means spawning a subprocess, picking a port, or ha
 - **Both SDK majors** - v1 over `InMemoryTransport`, v2 over the SDK's `handler.fetch` route. Detected automatically.
 - **A small harness** - tools, resources, and prompts, with pagination followed for you, plus the raw SDK client as an escape hatch.
 - **Typed matchers** - `toHaveTool`, `toHaveResource`, `toHavePrompt`, `toHaveTextContent`, `toHaveContent`, `toMatchOutputSchema`, `toBeToolError`, with TypeScript augmentation and did-you-mean suggestions on typos.
-- **Regression safety** - snapshot manifests of your tool, resource, and prompt surface, normalized so they only change when your server does.
+- **Regression safety** - snapshot manifests of your tool, resource, and prompt surface, normalized so key order and absent optionals never churn them.
 - **Real call ergonomics** - progress callbacks, `AbortSignal` cancellation, per-call timeouts, and a notification collector with `waitFor`.
 - **A `test` fixture** - `createMcpTest()` gives a fresh, auto-closed harness per test via vitest's `test.extend`.
 - **One runtime dependency** - `@cfworker/json-schema` (MIT, no transitive deps), used for output-schema validation. vitest and your MCP SDK stay peers, and the SDK peers are optional, so you install only the major you use.
@@ -156,18 +156,18 @@ With `autoClose: false` you own the lifetime and call `mcp.close()` yourself. Ou
 
 ### `McpHarness`
 
-| Member                          | Returns                                       |
-| ------------------------------- | --------------------------------------------- |
-| `kind`                          | `'v1'` or `'v2'`                              |
-| `client`                        | the underlying SDK client (escape hatch)      |
-| `listTools()`                   | every tool, following pagination              |
-| `callTool(name, args?, opts?)`  | the tool result - see [call options](#call-options) |
-| `listResources()`               | every resource, following pagination          |
-| `readResource(uri)`             | `{ contents }`                                |
-| `listPrompts()`                 | every prompt, following pagination            |
-| `getPrompt(name, args?)`        | `{ messages }`                                |
-| `notifications(method?)`        | a [notification collector](#notifications)    |
-| `close()`                       | disconnects; idempotent                       |
+| Member                         | Returns                                             |
+| ------------------------------ | --------------------------------------------------- |
+| `kind`                         | `'v1'` or `'v2'`                                    |
+| `client`                       | the underlying SDK client (escape hatch)            |
+| `listTools()`                  | every tool, following pagination                    |
+| `callTool(name, args?, opts?)` | the tool result - see [call options](#call-options) |
+| `listResources()`              | every resource, following pagination                |
+| `readResource(uri)`            | `{ contents }`                                      |
+| `listPrompts()`                | every prompt, following pagination                  |
+| `getPrompt(name, args?)`       | `{ messages }`                                      |
+| `notifications(method?)`       | a [notification collector](#notifications)          |
+| `close()`                      | disconnects; idempotent                             |
 
 Anything the harness does not wrap is one hop away on `mcp.client`.
 
@@ -177,43 +177,53 @@ Anything the harness does not wrap is one hop away on `mcp.client`.
 
 ```ts
 // progress
-const seen: number[] = []
-await mcp.callTool('slow', { ms: 200 }, { onProgress: (p) => seen.push(p.progress) })
+const seen: number[] = [];
+await mcp.callTool(
+  "slow",
+  { ms: 200 },
+  { onProgress: (p) => seen.push(p.progress) },
+);
 
 // cancellation
-const ac = new AbortController()
-setTimeout(() => ac.abort(), 50)
-await expect(mcp.callTool('slow', { ms: 5000 }, { signal: ac.signal })).rejects.toThrow()
+const ac = new AbortController();
+setTimeout(() => ac.abort(), 50);
+await expect(
+  mcp.callTool("slow", { ms: 5000 }, { signal: ac.signal }),
+).rejects.toThrow();
 
 // timeout
-await expect(mcp.callTool('slow', { ms: 5000 }, { timeoutMs: 100 })).rejects.toThrow()
+await expect(
+  mcp.callTool("slow", { ms: 5000 }, { timeoutMs: 100 }),
+).rejects.toThrow();
 ```
 
-| Option       | Type                                                              |
-| ------------ | ----------------------------------------------------------------- |
+| Option       | Type                                                                  |
+| ------------ | --------------------------------------------------------------------- |
 | `onProgress` | `(p: { progress: number; total?: number; message?: string }) => void` |
-| `signal`     | `AbortSignal`                                                     |
-| `timeoutMs`  | `number`                                                          |
+| `signal`     | `AbortSignal`                                                         |
+| `timeoutMs`  | `number`                                                              |
 
 ### Notifications
 
 `mcp.notifications(method?)` starts collecting immediately and returns a collector. Pass a method to filter.
 
 ```ts
-const progress = mcp.notifications('notifications/progress')
-await mcp.callTool('slow', { ms: 100 })
-expect(progress.items).toHaveLength(10)
+const progress = mcp.notifications("notifications/progress");
+await mcp.callTool("slow", { ms: 100 });
+expect(progress.items).toHaveLength(10);
 
 // or wait for one that matters
-const collector = mcp.notifications('notifications/progress')
-const halfway = collector.waitFor((n) => n.params.progress >= 5)
-await mcp.callTool('slow', { ms: 300 })
-await expect(halfway).resolves.toMatchObject({ method: 'notifications/progress' })
+const collector = mcp.notifications("notifications/progress");
+const halfway = collector.waitFor((n) => n.params.progress >= 5);
+await mcp.callTool("slow", { ms: 300 });
+await expect(halfway).resolves.toMatchObject({
+  method: "notifications/progress",
+});
 ```
 
 Each item is `{ method, params, at }`, where `at` is milliseconds since the collector was created. `waitFor(predicate, timeoutMs = 5000)` resolves with the first match - including one already collected - and rejects with a timeout error otherwise. Pending waiters are abandoned when the harness closes, so a timeout never surfaces against a later test.
 
-A progress token is attached to a call only when you pass `onProgress` or a collector is listening, so an otherwise bare `callTool` leaves the request untouched and your server's no-token path stays testable. Progress params arrive as `{ progress, total?, message? }`: the SDK consumes the token before handing them over, so items from two *concurrent* calls to the same tool cannot be told apart. Await one call at a time when you need to attribute them.
+A progress token is attached to a call only when you pass `onProgress` or a collector is listening, so an otherwise bare `callTool` leaves the request untouched and your server's no-token path stays testable. Progress params arrive as `{ progress, total?, message? }`: the SDK consumes the token before handing them over, so items from two _concurrent_ calls to the same tool cannot be told apart. Await one call at a time when you need to attribute them.
 
 **v2 servers collect progress only.** Under the 2026-07-28 stateless lifecycle, `list_changed` notifications are delivered over `subscriptions/listen`, which this harness does not open yet. v1 servers collect every notification the client receives.
 
@@ -224,17 +234,17 @@ Manifest helpers return normalized, deep-sorted objects - stable across runs, wi
 A manifest records what the server actually reports over the wire, which includes descriptor fields your MCP SDK adds for you (for example `execution` or a `$schema` on generated schemas). An SDK upgrade can therefore move a snapshot without your server changing; review the diff and update it as you would any snapshot. Capabilities your server does not expose come back empty rather than failing, so a tools-only server snapshots cleanly.
 
 ```ts
-import { expect } from 'vitest'
-import { capabilitiesManifest, toolManifest } from 'mcp-vitest/snapshot'
+import { expect } from "vitest";
+import { capabilitiesManifest, toolManifest } from "mcp-vitest/snapshot";
 
-test('tool surface is unchanged', async ({ mcp }) => {
-  expect(await toolManifest(mcp)).toMatchSnapshot()
-})
+test("tool surface is unchanged", async ({ mcp }) => {
+  expect(await toolManifest(mcp)).toMatchSnapshot();
+});
 
-test('capabilities are unchanged', async ({ mcp }) => {
+test("capabilities are unchanged", async ({ mcp }) => {
   // { tools: string[], resources: string[], prompts: string[] }, names only
-  expect(await capabilitiesManifest(mcp)).toMatchSnapshot()
-})
+  expect(await capabilitiesManifest(mcp)).toMatchSnapshot();
+});
 ```
 
 `toolManifest`, `resourceManifest`, `promptManifest`, and `capabilitiesManifest` are available from `mcp-vitest/snapshot` or the package root.
@@ -244,13 +254,13 @@ test('capabilities are unchanged', async ({ mcp }) => {
 `toMatchOutputSchema()` validates a result's `structuredContent` against the schema the tool declared in `tools/list`. Pass a JSON Schema explicitly to validate against something else.
 
 ```ts
-const result = await mcp.callTool('weather')
-expect(result).toMatchOutputSchema()
+const result = await mcp.callTool("weather");
+expect(result).toMatchOutputSchema();
 expect(result).toMatchOutputSchema({
-  type: 'object',
-  properties: { temperature: { type: 'number' }, unit: { type: 'string' } },
-  required: ['temperature', 'unit'],
-})
+  type: "object",
+  properties: { temperature: { type: "number" }, unit: { type: "string" } },
+  required: ["temperature", "unit"],
+});
 ```
 
 Note that both SDK majors validate declared output schemas server-side: if a tool's output violates its own schema, the call comes back as a tool error (`toBeToolError()`) rather than delivering invalid `structuredContent`. The explicit-schema form is what you want for asserting a contract the tool does not declare.
@@ -272,9 +282,9 @@ test("lists prompts", async ({ mcp }) => {
 
 ### Matchers
 
-| Matcher                            | Asserts                                                                    |
-| ---------------------------------- | -------------------------------------------------------------------------- |
-| `toHaveTool(name)`                 | the server exposes that tool (suggests near-misses on typos)               |
+| Matcher                            | Asserts                                                                     |
+| ---------------------------------- | --------------------------------------------------------------------------- |
+| `toHaveTool(name)`                 | the server exposes that tool (suggests near-misses on typos)                |
 | `toHaveResource(uri)`              | the server exposes that resource                                            |
 | `toHavePrompt(name)`               | the server exposes that prompt                                              |
 | `toHaveTextContent(string\|regex)` | a tool result's text content matches                                        |
