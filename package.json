@@ -1,18 +1,67 @@
 {
   "name": "mcp-vitest",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Vitest-native testing for Model Context Protocol (MCP) servers",
   "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
-      "default": "./index.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./matchers": {
+      "types": "./dist/matchers.d.ts",
+      "default": "./dist/matchers.js"
+    },
+    "./setup": {
+      "types": "./dist/setup.d.ts",
+      "default": "./dist/setup.js"
     }
   },
   "files": [
-    "index.js",
-    "index.d.ts"
+    "dist"
   ],
+  "scripts": {
+    "build": "tsdown src/index.ts src/matchers.ts src/setup.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
+    "test": "vitest run",
+    "ts:check": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "vitest": "^3.2.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@modelcontextprotocol/sdk": {
+      "optional": true
+    },
+    "@modelcontextprotocol/client": {
+      "optional": true
+    },
+    "@modelcontextprotocol/server": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
+    "@biomejs/biome": "^2.5.7",
+    "@modelcontextprotocol/client": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "publint": "^0.3.23",
+    "tsdown": "^0.22.14",
+    "typescript": "^5.9.0",
+    "vitest": "^4.1.10",
+    "zod": "^4.4.3"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nixrajput/mcp-vitest.git"
