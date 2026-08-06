@@ -24,7 +24,8 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - uses: ossf/scorecard-action@v2
+      # No floating v2 tag is published for this action, so pin the minor.
+      - uses: ossf/scorecard-action@v2.4.4
         with:
           results_file: results.sarif
           results_format: sarif
