@@ -1,0 +1,74 @@
+name: Feature Request
+description: Suggest an improvement or new feature for mcp-vitest
+title: '[Feature Request]: '
+labels: ['enhancement']
+assignees:
+  - nixrajput
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature!
+        Before submitting, check [existing issues](https://github.com/nixrajput/mcp-vitest/issues) and [discussions](https://github.com/nixrajput/mcp-vitest/discussions) to see if it has already been proposed.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Scope / area
+      description: Which part of mcp-vitest does this relate to?
+      multiple: false
+      options:
+        - Harness API
+        - Matchers
+        - Fixture (createMcpTest)
+        - Transports / lifecycles
+        - Types / TypeScript ergonomics
+        - Packaging / exports
+        - Docs
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem does this feature solve? Why is it needed?
+      placeholder: 'When testing my server, I find it hard to ...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: Describe the feature you would like to see. A sketch of the test code you wish you could write helps most.
+      placeholder: |
+        ```ts
+        test('...', async ({ mcp }) => {
+          // the API I wish existed
+        })
+        ```
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds you use today, or alternative approaches you have thought about?
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Any other information or references that would help.
+
+  - type: checkboxes
+    id: conduct
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue you agree to follow our [Code of Conduct](https://github.com/nixrajput/mcp-vitest/blob/main/CODE_OF_CONDUCT.md).
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

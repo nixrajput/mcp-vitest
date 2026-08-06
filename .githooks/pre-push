@@ -1,0 +1,22 @@
+#!/bin/sh
+# Pre-push gate. Runs lint + typecheck + tests + build before every push so
+# unformatted, lint-broken, type-broken, or failing code never reaches the remote.
+#
+# Enable once per clone:   git config core.hooksPath .githooks
+# Bypass in an emergency:  git push --no-verify
+set -eu
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+cd "$REPO_ROOT"
+
+if [ ! -d node_modules ]; then
+  echo "pre-push: node_modules missing - run 'npm install' first." >&2
+  exit 1
+fi
+
+echo "pre-push: running lint + typecheck + tests + build..."
+npm run lint || { echo "pre-push: biome check failed - fix it or run 'npm run format'." >&2; exit 1; }
+npm run ts:check || { echo "pre-push: type errors - fix them before pushing." >&2; exit 1; }
+npm test || { echo "pre-push: tests failed." >&2; exit 1; }
+npm run build || { echo "pre-push: build failed (tsdown/publint/attw)." >&2; exit 1; }
+echo "pre-push: checks passed."
