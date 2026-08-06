@@ -37,6 +37,7 @@ export default defineConfig({
 Then write tests against your server:
 
 ```ts
+import { expect } from 'vitest'
 import { createMcpTest } from 'mcp-vitest'
 import { createServer } from './src/server.js'
 
@@ -97,12 +98,17 @@ Returns a vitest `test` with an `mcp` fixture: a fresh harness per test,
 closed after each one.
 
 ```ts
+import { expect } from 'vitest'
+import { createMcpTest } from 'mcp-vitest'
+
 const test = createMcpTest(() => createServer())
 
 test('lists prompts', async ({ mcp }) => {
   await expect(mcp).toHavePrompt('greet')
 })
 ```
+
+(Or set `globals: true` in your vitest config and skip the `expect` import.)
 
 ### Matchers
 
