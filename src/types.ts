@@ -35,3 +35,10 @@ export interface RawConnection {
   client: SdkClientLike
   close(): Promise<void>
 }
+
+export type McpServerInput = unknown | (() => unknown | Promise<unknown>)
+
+export interface McpTestOptions {
+  /** Auto-close via vitest onTestFinished when inside a test. Default true. */
+  autoClose?: boolean
+}
