@@ -1,0 +1,31 @@
+{
+  "name": "mcp-vitest",
+  "version": "0.0.1",
+  "description": "Vitest-native testing for Model Context Protocol (MCP) servers",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "default": "./index.js"
+    }
+  },
+  "files": [
+    "index.js",
+    "index.d.ts"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nixrajput/mcp-vitest.git"
+  },
+  "homepage": "https://github.com/nixrajput/mcp-vitest#readme",
+  "bugs": "https://github.com/nixrajput/mcp-vitest/issues",
+  "author": "Nikhil Rajput (https://github.com/nixrajput)",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "vitest",
+    "testing",
+    "mcp-server"
+  ]
+}
