@@ -6,7 +6,13 @@ describe('connectV2', () => {
   test('round-trips listTools and callTool via handler.fetch', async () => {
     const { client, close } = await connectV2(() => createV2Server())
     const { tools } = await client.listTools()
-    expect(tools.map((t) => t.name).sort()).toEqual(['boom', 'echo'])
+    expect(tools.map((t) => t.name).sort()).toEqual([
+      'boom',
+      'echo',
+      'slow',
+      'weather',
+      'weather-bad',
+    ])
 
     const result = await client.callTool({
       name: 'echo',
