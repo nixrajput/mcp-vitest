@@ -1,0 +1,61 @@
+name: Release
+
+# On push to the default branch (a merged PR): tag v<package.json version>,
+# create a GitHub Release, then publish to npm via OIDC trusted publishing.
+# Every step skips itself if that version already shipped (idempotent).
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Tag and release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write # npm OIDC trusted publishing (no token secret)
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm >= 11.5.1; the bundled npm may lag.
+      - name: Update npm
+        run: npm install -g npm@latest
+      - name: Read version
+        id: v
+        run: |
+          version=$(jq -r .version package.json)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      - name: Release if new
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1 \
+            || git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "Tag $TAG already exists - skipping."
+            exit 0
+          fi
+          gh release create "$TAG" --target "${{ github.sha }}" --title "$TAG" --generate-notes
+          echo "Released $TAG"
+      - name: Publish to npm if new
+        env:
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          name=$(jq -r .name package.json)
+          if npm view "$name@$VERSION" version >/dev/null 2>&1; then
+            echo "$name@$VERSION already on npm - skipping."
+            exit 0
+          fi
+          npm publish
+          echo "Published $name@$VERSION"

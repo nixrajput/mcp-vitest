@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Run available scripts
+        run: |
+          for s in lint ts:check test build; do
+            if jq -e --arg s "$s" '.scripts[$s]' package.json >/dev/null; then
+              npm run "$s"
+            fi
+          done
+      - name: Verify publish contents
+        run: npm pack --dry-run
