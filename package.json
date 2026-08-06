@@ -26,10 +26,10 @@
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
-    "vitest": "^3.2.0 || ^4.0.0",
-    "@modelcontextprotocol/sdk": "^1.17.0",
     "@modelcontextprotocol/client": "^2.0.0",
-    "@modelcontextprotocol/server": "^2.0.0"
+    "@modelcontextprotocol/sdk": "^1.17.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "vitest": "^3.2.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
     "@modelcontextprotocol/sdk": {
@@ -52,7 +52,7 @@
     "tsdown": "^0.22.14",
     "typescript": "^5.9.0",
     "vitest": "^4.1.10",
-    "zod": "^3.25.0"
+    "zod": "^4.4.3"
   },
   "repository": {
     "type": "git",
