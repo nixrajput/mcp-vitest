@@ -17,9 +17,25 @@ export async function connectV2(
   const client = new Client({ name: 'mcp-vitest', version: '0.1.0' })
   await client.connect(transport)
 
+  const listeners = new Set<(n: { method: string; params: unknown }) => void>()
+  const emit = (method: string, params: unknown) => {
+    for (const l of listeners) l({ method, params })
+  }
+  // list_changed-style notifications need subscriptions/listen under the 2026
+  // lifecycle, which this harness does not open, so v2 collects progress only.
+  ;(
+    client as unknown as { fallbackNotificationHandler?: (n: unknown) => Promise<void> }
+  ).fallbackNotificationHandler = async (n) => {
+    const note = n as { method: string; params: unknown }
+    emit(note.method, note.params)
+  }
+
   let closed = false
   return {
     client: client as unknown as SdkClientLike,
+    onNotification: (cb) => {
+      listeners.add(cb)
+    },
     // v2 dropped the resultSchema parameter: callTool(params, options?)
     callTool: async (params, opts?: CallToolOptions) =>
       (
@@ -27,7 +43,10 @@ export async function connectV2(
           callTool: (p: unknown, o: unknown) => Promise<McpToolResult>
         }
       ).callTool(params, {
-        onprogress: opts?.onProgress,
+        onprogress: (p: { progress: number; total?: number; message?: string }) => {
+          emit('notifications/progress', p)
+          opts?.onProgress?.(p)
+        },
         signal: opts?.signal,
         timeout: opts?.timeoutMs,
       }),

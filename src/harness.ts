@@ -1,6 +1,7 @@
 import { connectV1 } from './connect/v1.js'
 import { connectV2 } from './connect/v2.js'
 import { detectServerKind, type ServerKind } from './detect.js'
+import { NotificationCollector } from './notifications.js'
 import {
   type CallToolOptions,
   type McpServerInput,
@@ -18,8 +19,17 @@ export class McpHarness {
     private readonly conn: RawConnection,
   ) {}
 
+  /** @internal fed by mcpTest()'s connection listener */
+  readonly collectors: NotificationCollector[] = []
+
   get client(): SdkClientLike {
     return this.conn.client
+  }
+
+  notifications(method?: string): NotificationCollector {
+    const collector = new NotificationCollector(method)
+    this.collectors.push(collector)
+    return collector
   }
 
   async listTools() {
@@ -123,6 +133,9 @@ export async function mcpTest(
 ): Promise<McpHarness> {
   const { kind, conn } = await resolveInput(input)
   const harness = new McpHarness(kind, conn)
+  conn.onNotification((n) => {
+    for (const c of harness.collectors) c.push(n.method, n.params)
+  })
   if (options.autoClose !== false) {
     try {
       const { onTestFinished } = await import('vitest')

@@ -57,6 +57,7 @@ export interface RawConnection {
     params: { name: string; arguments?: Record<string, unknown> },
     opts?: CallToolOptions,
   ): Promise<McpToolResult>
+  onNotification(cb: (n: { method: string; params: unknown }) => void): void
   close(): Promise<void>
 }
 

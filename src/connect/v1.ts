@@ -15,9 +15,25 @@ export async function connectV1(server: unknown): Promise<RawConnection> {
   }
   await Promise.all([connectable.connect(serverTransport), client.connect(clientTransport)])
 
+  const listeners = new Set<(n: { method: string; params: unknown }) => void>()
+  const emit = (method: string, params: unknown) => {
+    for (const l of listeners) l({ method, params })
+  }
+  // Progress never reaches the fallback: both majors register a dedicated
+  // handler for it at construction, so collectors are fed from callTool below.
+  ;(
+    client as unknown as { fallbackNotificationHandler?: (n: unknown) => Promise<void> }
+  ).fallbackNotificationHandler = async (n) => {
+    const note = n as { method: string; params: unknown }
+    emit(note.method, note.params)
+  }
+
   let closed = false
   return {
     client: client as unknown as SdkClientLike,
+    onNotification: (cb) => {
+      listeners.add(cb)
+    },
     // v1 signature: callTool(params, resultSchema?, options?)
     callTool: async (params, opts?: CallToolOptions) =>
       (
@@ -25,7 +41,10 @@ export async function connectV1(server: unknown): Promise<RawConnection> {
           callTool: (p: unknown, s: unknown, o: unknown) => Promise<McpToolResult>
         }
       ).callTool(params, undefined, {
-        onprogress: opts?.onProgress,
+        onprogress: (p: { progress: number; total?: number; message?: string }) => {
+          emit('notifications/progress', p)
+          opts?.onProgress?.(p)
+        },
         signal: opts?.signal,
         timeout: opts?.timeoutMs,
       }),
