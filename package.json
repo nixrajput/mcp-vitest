@@ -20,13 +20,17 @@
     "./setup": {
       "types": "./dist/setup.d.ts",
       "default": "./dist/setup.js"
+    },
+    "./snapshot": {
+      "types": "./dist/snapshot.d.ts",
+      "default": "./dist/snapshot.js"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsdown src/index.ts src/matchers.ts src/setup.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
+    "build": "tsdown src/index.ts src/matchers.ts src/setup.ts src/snapshot.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
     "test": "vitest run",
     "ts:check": "tsc --noEmit",
     "lint": "biome check .",
