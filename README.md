@@ -2,9 +2,7 @@
 
 # mcp-vitest
 
-Vitest-native testing for **Model Context Protocol** servers.
-Your server runs **in-process**, driven by a real MCP SDK client over a real transport.
-Works with **both SDK majors** - v1 and v2.
+Vitest-native testing for **Model Context Protocol** servers - in-process, over the real MCP SDK, on both SDK majors.
 
 <br />
 
@@ -48,10 +46,10 @@ Works with **both SDK majors** - v1 and v2.
 ## Overview
 
 Testing an MCP server usually means spawning a subprocess, picking a port, or
-hand-rolling JSON-RPC frames. mcp-vitest does none of that. It connects a real SDK
-`Client` to your server over the SDK's own in-process transport, then hands you a
-small harness plus typed matchers. Nothing about the protocol is reimplemented, so
-what your tests exercise is what a real client would.
+hand-rolling JSON-RPC frames. mcp-vitest does none of that: your server runs
+**in-process**, driven by a real SDK `Client` over the SDK's own in-process
+transport, and you get a small harness plus typed matchers on top. The protocol
+is never reimplemented, so what your tests exercise is what a real client would.
 
 ## Features
 
