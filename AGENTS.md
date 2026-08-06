@@ -6,9 +6,7 @@ Last updated: 2026-08-06
 
 ## Project
 
-**mcp-vitest** is a Vitest-native testing harness for Model Context Protocol
-servers. It never reimplements the protocol: it drives a real SDK `Client` over a
-real transport, in-process.
+**mcp-vitest** is a Vitest-native testing harness for Model Context Protocol servers. It never reimplements the protocol: it drives a real SDK `Client` over a real transport, in-process.
 
 | Area          | Detail                                                                   |
 | ------------- | ------------------------------------------------------------------------ |
@@ -37,23 +35,20 @@ test/
   servers/v2.ts  v2 fixture server, identical surface
 ```
 
-The two fixture servers share one contract on purpose: every harness and matcher
-test runs against both, so a change that only works on one SDK major fails loudly.
+The two fixture servers share one contract on purpose: every harness and matcher test runs against both, so a change that only works on one SDK major fails loudly.
 
 ### The checks
 
-`npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly
-these four, in that order. `.githooks/pre-push` runs them too
-(`git config core.hooksPath .githooks`).
+`npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly these four, in that order. `.githooks/pre-push` runs them too (`git config core.hooksPath .githooks`).
 
 ### Conventions
 
-- Conventional Commits, imperative subject `<=` 50 chars, no trailing period, no
-  `Co-Authored-By` or `Generated with` trailers.
+- Conventional Commits, imperative subject `<=` 50 chars, no trailing period, no `Co-Authored-By` or `Generated with` trailers.
 - Every PR bumps `package.json` version - CI gate `version bumped` enforces it.
 - The PR title becomes the squash commit message.
 - `main` is protected: PR required, squash-only merges.
 - The README documents **shipped features only** - no roadmap, no plans.
+- Markdown prose is never hard-wrapped: one line per paragraph and per list item. Do not re-wrap these files to a column.
 
 ---
 
@@ -145,8 +140,6 @@ After completing work, state what changed and why - not just that it's done.
 
 ### Release Safety
 
-- **Never** merge a PR or publish to npm without explicit approval. Merging `main`
-  triggers the tag, the GitHub Release, and `npm publish` via OIDC in one shot,
-  and a published version number can never be reused.
+- **Never** merge a PR or publish to npm without explicit approval. Merging `main` triggers the tag, the GitHub Release, and `npm publish` via OIDC in one shot, and a published version number can never be reused.
 
 ---

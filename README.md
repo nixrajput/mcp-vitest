@@ -45,26 +45,16 @@ Vitest-native testing for **Model Context Protocol** servers - in-process, over 
 
 ## Overview
 
-Testing an MCP server usually means spawning a subprocess, picking a port, or
-hand-rolling JSON-RPC frames. mcp-vitest does none of that: your server runs
-**in-process**, driven by a real SDK `Client` over the SDK's own in-process
-transport, and you get a small harness plus typed matchers on top. The protocol
-is never reimplemented, so what your tests exercise is what a real client would.
+Testing an MCP server usually means spawning a subprocess, picking a port, or hand-rolling JSON-RPC frames. mcp-vitest does none of that: your server runs **in-process**, driven by a real SDK `Client` over the SDK's own in-process transport, and you get a small harness plus typed matchers on top. The protocol is never reimplemented, so what your tests exercise is what a real client would.
 
 ## Features
 
 - **In-process, no subprocess** - no ports, no spawn, no teardown races.
-- **Both SDK majors** - v1 over `InMemoryTransport`, v2 over the SDK's
-  `handler.fetch` route. Detected automatically.
-- **A small harness** - tools, resources, and prompts, with pagination followed
-  for you, plus the raw SDK client as an escape hatch.
-- **Typed matchers** - `toHaveTool`, `toHaveResource`, `toHavePrompt`,
-  `toHaveTextContent`, `toBeToolError`, with TypeScript augmentation and
-  did-you-mean suggestions on typos.
-- **A `test` fixture** - `createMcpTest()` gives a fresh, auto-closed harness per
-  test via vitest's `test.extend`.
-- **Zero runtime dependencies** - vitest and your MCP SDK are peers; the SDK peers
-  are optional, so you install only the major you use.
+- **Both SDK majors** - v1 over `InMemoryTransport`, v2 over the SDK's `handler.fetch` route. Detected automatically.
+- **A small harness** - tools, resources, and prompts, with pagination followed for you, plus the raw SDK client as an escape hatch.
+- **Typed matchers** - `toHaveTool`, `toHaveResource`, `toHavePrompt`, `toHaveTextContent`, `toBeToolError`, with TypeScript augmentation and did-you-mean suggestions on typos.
+- **A `test` fixture** - `createMcpTest()` gives a fresh, auto-closed harness per test via vitest's `test.extend`.
+- **Zero runtime dependencies** - vitest and your MCP SDK are peers; the SDK peers are optional, so you install only the major you use.
 
 ## Tech stack
 
@@ -131,26 +121,20 @@ test("search tool works", async ({ mcp }) => {
 });
 ```
 
-(Set `globals: true` in your vitest config if you would rather skip the `expect`
-import.)
+(Set `globals: true` in your vitest config if you would rather skip the `expect` import.)
 
 ## Works with both SDK majors
 
-- **v1** (`@modelcontextprotocol/sdk`) servers connect over the SDK's
-  `InMemoryTransport` linked pair - the 2025-era stateful lifecycle.
-- **v2** (`@modelcontextprotocol/server`) servers connect over the SDK's in-process
-  `handler.fetch` route - the 2026-07-28 stateless lifecycle.
+- **v1** (`@modelcontextprotocol/sdk`) servers connect over the SDK's `InMemoryTransport` linked pair - the 2025-era stateful lifecycle.
+- **v2** (`@modelcontextprotocol/server`) servers connect over the SDK's in-process `handler.fetch` route - the 2026-07-28 stateless lifecycle.
 
-You do not pick. `mcpTest()` detects which SDK your server instance comes from and
-routes to the matching transport; `mcp.kind` reports what it found (`'v1'` or
-`'v2'`). The same tests, matchers, and fixture work either way.
+You do not pick. `mcpTest()` detects which SDK your server instance comes from and routes to the matching transport; `mcp.kind` reports what it found (`'v1'` or `'v2'`). The same tests, matchers, and fixture work either way.
 
 ## API
 
 ### `mcpTest(serverOrFactory, options?)`
 
-Connects a server and resolves with an [`McpHarness`](#mcpharness). Accepts an
-`McpServer` instance or a factory (sync or async) that returns one.
+Connects a server and resolves with an [`McpHarness`](#mcpharness). Accepts an `McpServer` instance or a factory (sync or async) that returns one.
 
 ```ts
 import { mcpTest } from "mcp-vitest";
@@ -162,8 +146,7 @@ const mcp = await mcpTest(() => createServer());
 | ----------- | ------- | ------------------------------------------------------------------- |
 | `autoClose` | `true`  | Close the harness via vitest's `onTestFinished` when inside a test. |
 
-With `autoClose: false` you own the lifetime and call `mcp.close()` yourself.
-Outside a vitest test context, auto-close is skipped and closing is always yours.
+With `autoClose: false` you own the lifetime and call `mcp.close()` yourself. Outside a vitest test context, auto-close is skipped and closing is always yours.
 
 ### `McpHarness`
 
@@ -183,8 +166,7 @@ Anything the harness does not wrap is one hop away on `mcp.client`.
 
 ### `createMcpTest(serverOrFactory, options?)`
 
-Returns a vitest `test` with an `mcp` fixture: a fresh harness per test, closed
-after each one. Same arguments as `mcpTest`.
+Returns a vitest `test` with an `mcp` fixture: a fresh harness per test, closed after each one. Same arguments as `mcpTest`.
 
 ```ts
 import { expect } from "vitest";
@@ -207,11 +189,9 @@ test("lists prompts", async ({ mcp }) => {
 | `toHaveTextContent(string\|regex)` | a tool result's text content matches                         |
 | `toBeToolError(string\|regex?)`    | a tool result has `isError: true`, optionally matching text  |
 
-The three server matchers query the live server, so they are async:
-`await expect(mcp).toHaveTool('x')`. The two result matchers are synchronous.
+The three server matchers query the live server, so they are async: `await expect(mcp).toHaveTool('x')`. The two result matchers are synchronous.
 
-`setupFiles: ['mcp-vitest/setup']` registers all of them. To register them
-manually instead:
+`setupFiles: ['mcp-vitest/setup']` registers all of them. To register them manually instead:
 
 ```ts
 import { registerMatchers } from "mcp-vitest";
@@ -221,9 +201,7 @@ registerMatchers();
 
 ### `detectServerKind(server)`
 
-Resolves `'v1'` or `'v2'` for an SDK server object, or rejects with a message
-naming what to pass instead. Exported for the rare case you need to branch on the
-SDK major yourself.
+Resolves `'v1'` or `'v2'` for an SDK server object, or rejects with a message naming what to pass instead. Exported for the rare case you need to branch on the SDK major yourself.
 
 ## Requirements
 
@@ -233,10 +211,7 @@ SDK major yourself.
 
 ## Contributing
 
-Contributions are welcome. Fork, branch, and open a PR - see
-[CONTRIBUTING.md](CONTRIBUTING.md) for the checks a PR has to pass. Bugs and ideas
-go to [Issues][issues]; questions to [Discussions][discussions]; vulnerabilities
-follow [SECURITY.md](SECURITY.md).
+Contributions are welcome. Fork, branch, and open a PR - see [CONTRIBUTING.md](CONTRIBUTING.md) for the checks a PR has to pass. Bugs and ideas go to [Issues][issues]; questions to [Discussions][discussions]; vulnerabilities follow [SECURITY.md](SECURITY.md).
 
 ## Contributors
 
@@ -254,8 +229,7 @@ Licensed under the **MIT** license - see [LICENSE](LICENSE).
 
 <div align="center">
 
-If mcp-vitest saves you time, consider supporting its development. Sponsorship
-funds new features, faster fixes, and keeps the project independent.
+If mcp-vitest saves you time, consider supporting its development. Sponsorship funds new features, faster fixes, and keeps the project independent.
 
 <br />
 
