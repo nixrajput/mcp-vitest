@@ -54,7 +54,7 @@ Testing an MCP server usually means spawning a subprocess, picking a port, or ha
 - **A small harness** - tools, resources, and prompts, with pagination followed for you, plus the raw SDK client as an escape hatch.
 - **Typed matchers** - `toHaveTool`, `toHaveResource`, `toHavePrompt`, `toHaveTextContent`, `toBeToolError`, with TypeScript augmentation and did-you-mean suggestions on typos.
 - **A `test` fixture** - `createMcpTest()` gives a fresh, auto-closed harness per test via vitest's `test.extend`.
-- **Zero runtime dependencies** - vitest and your MCP SDK are peers; the SDK peers are optional, so you install only the major you use.
+- **One runtime dependency** - `@cfworker/json-schema` (MIT, no transitive deps), used for output-schema validation. vitest and your MCP SDK stay peers, and the SDK peers are optional, so you install only the major you use.
 
 ## Tech stack
 

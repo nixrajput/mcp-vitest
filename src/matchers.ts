@@ -1,6 +1,7 @@
+import { Validator } from '@cfworker/json-schema'
 import { expect } from 'vitest'
 import { McpHarness } from './harness.js'
-import type { McpToolResult } from './types.js'
+import { type McpToolResult, TOOL_META, type ToolCallMeta } from './types.js'
 
 function levenshtein(a: string, b: string): number {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
@@ -79,6 +80,57 @@ export const mcpMatchers = {
     }
   },
 
+  toHaveContent(received: McpToolResult, partial: Record<string, unknown>) {
+    const parts = received.content ?? []
+    const pass = parts.some((p) =>
+      Object.entries(partial).every(([k, v]) =>
+        v instanceof RegExp ? typeof p[k] === 'string' && v.test(p[k] as string) : p[k] === v,
+      ),
+    )
+    return {
+      pass,
+      message: () =>
+        `Expected content ${pass ? 'not ' : ''}to include a part matching ` +
+        `${JSON.stringify(partial)}. Content: ${JSON.stringify(parts)}`,
+    }
+  },
+
+  toMatchOutputSchema(received: McpToolResult, schema?: Record<string, unknown>) {
+    const meta = (received as unknown as Record<PropertyKey, unknown>)[TOOL_META] as
+      | ToolCallMeta
+      | undefined
+    const effective = schema ?? meta?.outputSchema
+    if (!effective) {
+      return {
+        pass: false,
+        message: () =>
+          'No output schema available: the tool declared none and no schema argument ' +
+          'was passed to toMatchOutputSchema(schema)',
+      }
+    }
+    if (received.structuredContent === undefined) {
+      return { pass: false, message: () => 'Result has no structuredContent to validate' }
+    }
+    // SDK v1 emits tool schemas as draft-07; honour whatever the schema declares.
+    const declared = (effective as { $schema?: string }).$schema ?? ''
+    const draft = declared.includes('draft-07')
+      ? '7'
+      : declared.includes('2019-09')
+        ? '2019-09'
+        : '2020-12'
+    const validator = new Validator(effective as never, draft)
+    const res = validator.validate(received.structuredContent)
+    return {
+      pass: res.valid,
+      message: () =>
+        res.valid
+          ? 'Expected structuredContent not to match the output schema'
+          : `structuredContent does not match output schema: ${res.errors
+              .map((e) => `${e.instanceLocation} ${e.error}`)
+              .join('; ')}`,
+    }
+  },
+
   toBeToolError(received: McpToolResult, match?: string | RegExp) {
     if (received.isError !== true) {
       return {
@@ -117,6 +169,8 @@ interface McpHarnessMatchers<R> {
 
 interface McpResultMatchers<R> {
   toHaveTextContent(expected: string | RegExp): R
+  toHaveContent(partial: Record<string, unknown>): R
+  toMatchOutputSchema(schema?: Record<string, unknown>): R
   toBeToolError(match?: string | RegExp): R
 }
 

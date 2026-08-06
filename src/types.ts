@@ -1,3 +1,11 @@
+/** Non-enumerable key under which the harness attaches call metadata to a result. */
+export const TOOL_META: unique symbol = Symbol('mcp-vitest.toolMeta')
+
+export interface ToolCallMeta {
+  toolName: string
+  outputSchema?: Record<string, unknown>
+}
+
 export interface McpToolResult {
   content: Array<{ type: string; text?: string; [k: string]: unknown }>
   structuredContent?: unknown
@@ -10,7 +18,12 @@ export interface McpToolResult {
  */
 export interface SdkClientLike {
   listTools(params?: { cursor?: string }): Promise<{
-    tools: Array<{ name: string; description?: string; inputSchema?: unknown }>
+    tools: Array<{
+      name: string
+      description?: string
+      inputSchema?: unknown
+      outputSchema?: unknown
+    }>
     nextCursor?: string
   }>
   callTool(params: { name: string; arguments?: Record<string, unknown> }): Promise<McpToolResult>

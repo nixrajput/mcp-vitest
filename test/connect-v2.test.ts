@@ -12,6 +12,7 @@ describe('connectV2', () => {
       'slow',
       'weather',
       'weather-bad',
+      'weather-strict',
     ])
 
     const result = await client.callTool({

@@ -46,7 +46,7 @@ npm run build      # tsdown + publint + attw
 - **Commits:** Conventional Commits (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`, `refactor:`), imperative subject, no trailing period.
 - **Style:** Biome, single quotes, no semicolons, 100-column lines. Do not hand-format - run `npm run format`.
 - **Language:** TypeScript strict, ESM only, Node `>=20`. No CJS build.
-- **Dependencies:** the package ships with zero runtime dependencies. Both SDK majors and vitest are peers, and the SDK peers are optional. Please do not add a runtime dependency without discussing it in an issue first.
+- **Dependencies:** the package ships with exactly one runtime dependency, `@cfworker/json-schema` (MIT, no transitive deps), which backs `toMatchOutputSchema`. Both SDK majors and vitest are peers, and the SDK peers are optional. Please do not add another runtime dependency without discussing it in an issue first.
 - **Comments:** explain why, not what. Most code needs none.
 
 ## Reporting issues

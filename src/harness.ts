@@ -1,13 +1,15 @@
 import { connectV1 } from './connect/v1.js'
 import { connectV2 } from './connect/v2.js'
 import { detectServerKind, type ServerKind } from './detect.js'
-import type {
-  CallToolOptions,
-  McpServerInput,
-  McpTestOptions,
-  McpToolResult,
-  RawConnection,
-  SdkClientLike,
+import {
+  type CallToolOptions,
+  type McpServerInput,
+  type McpTestOptions,
+  type McpToolResult,
+  type RawConnection,
+  type SdkClientLike,
+  TOOL_META,
+  type ToolCallMeta,
 } from './types.js'
 
 export class McpHarness {
@@ -36,7 +38,28 @@ export class McpHarness {
     args?: Record<string, unknown>,
     opts?: CallToolOptions,
   ): Promise<McpToolResult> {
-    return this.conn.callTool({ name, arguments: args }, opts)
+    const result = await this.conn.callTool({ name, arguments: args }, opts)
+    // Carries the tool's declared outputSchema to toMatchOutputSchema() without
+    // widening the public result shape. Non-enumerable so snapshots ignore it.
+    Object.defineProperty(result, TOOL_META, {
+      value: {
+        toolName: name,
+        outputSchema: (await this.toolEntry(name))?.outputSchema as
+          | Record<string, unknown>
+          | undefined,
+      } satisfies ToolCallMeta,
+      enumerable: false,
+    })
+    return result
+  }
+
+  private toolIndex?: Map<string, Awaited<ReturnType<McpHarness['listTools']>>[number]>
+
+  private async toolEntry(name: string) {
+    if (!this.toolIndex) {
+      this.toolIndex = new Map((await this.listTools()).map((t) => [t.name, t]))
+    }
+    return this.toolIndex.get(name)
   }
 
   async readResource(uri: string) {

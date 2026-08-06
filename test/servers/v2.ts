@@ -54,9 +54,17 @@ export function createV2Server(): McpServer {
     }),
   )
 
+  // No outputSchema on purpose: both SDK majors validate declared output schemas
+  // server-side and convert a violation into an isError result, so a tool that
+  // declares one can never hand invalid structuredContent to the client.
+  server.registerTool('weather-bad', { description: 'Broken structured weather' }, async () => ({
+    content: [{ type: 'text', text: 'hot' }],
+    structuredContent: { temperature: 'hot' },
+  }))
+
   server.registerTool(
-    'weather-bad',
-    { description: 'Broken structured weather', outputSchema: weatherOutput },
+    'weather-strict',
+    { description: 'Declares a schema its output violates', outputSchema: weatherOutput },
     async () => ({
       content: [{ type: 'text', text: 'hot' }],
       structuredContent: { temperature: 'hot' } as never,
