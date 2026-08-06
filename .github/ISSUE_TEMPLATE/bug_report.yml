@@ -1,0 +1,100 @@
+name: Bug Report
+description: File a bug report for mcp-vitest
+title: '[Bug]: '
+labels: ['bug', 'triage']
+assignees: ['nixrajput']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report.
+        Before submitting, please check the [existing issues](https://github.com/nixrajput/mcp-vitest/issues) to avoid duplicates.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of mcp-vitest is affected?
+      multiple: false
+      options:
+        - Harness (mcpTest / McpHarness)
+        - SDK v1 connect (InMemoryTransport)
+        - SDK v2 connect (handler.fetch)
+        - Server detection (detectServerKind)
+        - Matchers
+        - Fixture (createMcpTest)
+        - Types / TypeScript
+        - Packaging / exports / build
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly. What did you see, and what did you expect?
+      placeholder: 'Expected: ... Actual: ...'
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: A minimal test file plus the command you ran. Smaller repros get fixed faster.
+      placeholder: |
+        1. Server registers tool '...'
+        2. Test does `await expect(mcp).toHaveTool('...')`
+        3. Run `npx vitest run`
+        4. See error
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: mcp-vitest version
+      description: The version you are running.
+      placeholder: 'e.g. 0.1.1'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sdk
+    attributes:
+      label: MCP SDK
+      description: Which SDK does your server use?
+      multiple: false
+      options:
+        - 'v1 (@modelcontextprotocol/sdk)'
+        - 'v2 (@modelcontextprotocol/server + client)'
+        - Both
+        - Not sure
+    validations:
+      required: true
+
+  - type: input
+    id: env
+    attributes:
+      label: Node and vitest versions
+      description: Output of `node -v` and your vitest version.
+      placeholder: 'e.g. node v22.16.0, vitest 4.1.10'
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or test output
+      description: Paste the failing test output or stack trace. Formatted as code.
+      render: shell
+
+  - type: checkboxes
+    id: conduct
+    attributes:
+      label: Code of Conduct
+      description: By submitting this issue you agree to follow our [Code of Conduct](https://github.com/nixrajput/mcp-vitest/blob/main/CODE_OF_CONDUCT.md).
+      options:
+        - label: I agree to follow this project's Code of Conduct
+          required: true

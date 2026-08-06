@@ -4,3 +4,6 @@ dist/
 .DS_Store
 coverage/
 *.tsbuildinfo
+
+# Claude Code machine-local settings
+.claude/settings.local.json

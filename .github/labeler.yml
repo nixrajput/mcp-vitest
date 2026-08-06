@@ -1,0 +1,19 @@
+# .github/labeler.yml — path-based PR auto-labels (actions/labeler@v5 format).
+documentation:
+  - changed-files:
+      - any-glob-to-any-file: ['**/*.md']
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ['.github/**', '.githooks/**']
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file: ['package.json', 'package-lock.json']
+tests:
+  - changed-files:
+      - any-glob-to-any-file: ['test/**']
+matchers:
+  - changed-files:
+      - any-glob-to-any-file: ['src/matchers.ts', 'src/setup.ts']
+transports:
+  - changed-files:
+      - any-glob-to-any-file: ['src/connect/**', 'src/detect.ts']
