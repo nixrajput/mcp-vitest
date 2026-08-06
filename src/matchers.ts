@@ -80,12 +80,25 @@ export const mcpMatchers = {
     }
   },
 
-  toHaveContent(received: McpToolResult, partial: Record<string, unknown>) {
+  toHaveContent(
+    this: { equals?: (a: unknown, b: unknown) => boolean },
+    received: McpToolResult,
+    partial: Record<string, unknown>,
+  ) {
+    const entries = Object.entries(partial)
+    if (entries.length === 0) {
+      throw new TypeError('toHaveContent needs at least one field to match on')
+    }
+    // Structural, not reference, equality: every content type except text
+    // carries nested objects (resource, resource_link, annotations).
+    const eq = this?.equals ?? ((a: unknown, b: unknown) => a === b)
     const parts = received.content ?? []
     const pass = parts.some((p) =>
-      Object.entries(partial).every(([k, v]) =>
-        v instanceof RegExp ? typeof p[k] === 'string' && v.test(p[k] as string) : p[k] === v,
-      ),
+      entries.every(([k, v]) => {
+        if (!(k in p)) return false
+        if (v instanceof RegExp) return typeof p[k] === 'string' && v.test(p[k] as string)
+        return eq(p[k], v)
+      }),
     )
     return {
       pass,
@@ -100,24 +113,29 @@ export const mcpMatchers = {
       | ToolCallMeta
       | undefined
     const effective = schema ?? meta?.outputSchema
+    // These two are misconfiguration, not a failed assertion: returning
+    // pass: false would make `.not.toMatchOutputSchema()` pass without
+    // validating anything.
     if (!effective) {
-      return {
-        pass: false,
-        message: () =>
-          'No output schema available: the tool declared none and no schema argument ' +
+      throw new TypeError(
+        'No output schema available: the tool declared none and no schema argument ' +
           'was passed to toMatchOutputSchema(schema)',
-      }
+      )
     }
     if (received.structuredContent === undefined) {
-      return { pass: false, message: () => 'Result has no structuredContent to validate' }
+      throw new TypeError('Result has no structuredContent to validate')
     }
     // SDK v1 emits tool schemas as draft-07; honour whatever the schema declares.
     const declared = (effective as { $schema?: string }).$schema ?? ''
-    const draft = declared.includes('draft-07')
-      ? '7'
-      : declared.includes('2019-09')
-        ? '2019-09'
-        : '2020-12'
+    // The validator has no draft-06 dialect; 07 is the nearest and matches it on
+    // the keywords that actually differ from 2020-12 (numeric exclusiveMinimum).
+    const draft = declared.includes('draft-04')
+      ? '4'
+      : declared.includes('draft-06') || declared.includes('draft-07')
+        ? '7'
+        : declared.includes('2019-09')
+          ? '2019-09'
+          : '2020-12'
     const validator = new Validator(effective as never, draft)
     const res = validator.validate(received.structuredContent)
     return {

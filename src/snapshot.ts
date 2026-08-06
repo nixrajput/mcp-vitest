@@ -1,12 +1,14 @@
 import type { McpHarness } from './harness.js'
 
-// Snapshots must not churn on key order, absent optionals, or server-added _meta.
-function normalize(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalize)
+// Snapshots must not churn on key order or absent optionals. `_meta` is dropped
+// only from the entry itself: servers attach it there, while a nested _meta is
+// the user's own schema property and a real change worth catching.
+function normalize(value: unknown, dropMeta = false): unknown {
+  if (Array.isArray(value)) return value.map((v) => normalize(v, dropMeta))
   if (value && typeof value === 'object') {
     const out: Record<string, unknown> = {}
     for (const key of Object.keys(value as object).sort()) {
-      if (key === '_meta') continue
+      if (dropMeta && key === '_meta') continue
       const v = (value as Record<string, unknown>)[key]
       if (v === undefined) continue
       out[key] = normalize(v)
@@ -16,26 +18,40 @@ function normalize(value: unknown): unknown {
   return value
 }
 
+function normalizeEntries(entries: unknown[]): unknown {
+  return entries.map((e) => normalize(e, true))
+}
+
+// A server that does not advertise a capability answers -32601; for a manifest
+// "this server exposes none" is the honest answer, not a failed test.
+async function orEmpty<T>(list: Promise<T[]>): Promise<T[]> {
+  try {
+    return await list
+  } catch {
+    return []
+  }
+}
+
 export async function toolManifest(mcp: McpHarness): Promise<unknown> {
-  const tools = await mcp.listTools()
-  return normalize([...tools].sort((a, b) => a.name.localeCompare(b.name)))
+  const tools = await orEmpty(mcp.listTools())
+  return normalizeEntries([...tools].sort((a, b) => a.name.localeCompare(b.name)))
 }
 
 export async function resourceManifest(mcp: McpHarness): Promise<unknown> {
-  const resources = await mcp.listResources()
-  return normalize([...resources].sort((a, b) => a.uri.localeCompare(b.uri)))
+  const resources = await orEmpty(mcp.listResources())
+  return normalizeEntries([...resources].sort((a, b) => a.uri.localeCompare(b.uri)))
 }
 
 export async function promptManifest(mcp: McpHarness): Promise<unknown> {
-  const prompts = await mcp.listPrompts()
-  return normalize([...prompts].sort((a, b) => a.name.localeCompare(b.name)))
+  const prompts = await orEmpty(mcp.listPrompts())
+  return normalizeEntries([...prompts].sort((a, b) => a.name.localeCompare(b.name)))
 }
 
 export async function capabilitiesManifest(mcp: McpHarness): Promise<unknown> {
   const [tools, resources, prompts] = await Promise.all([
-    mcp.listTools(),
-    mcp.listResources(),
-    mcp.listPrompts(),
+    orEmpty(mcp.listTools()),
+    orEmpty(mcp.listResources()),
+    orEmpty(mcp.listPrompts()),
   ])
   return {
     tools: tools.map((t) => t.name).sort(),

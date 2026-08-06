@@ -48,7 +48,13 @@ export class McpHarness {
     args?: Record<string, unknown>,
     opts?: CallToolOptions,
   ): Promise<McpToolResult> {
-    const result = await this.conn.callTool({ name, arguments: args }, opts)
+    // Only ask the SDK for progress when someone is listening: it attaches
+    // _meta.progressToken whenever onprogress is set, and servers branch on it.
+    const wantsProgress = opts?.onProgress ?? (this.collectors.length > 0 ? () => {} : undefined)
+    const result = await this.conn.callTool(
+      { name, arguments: args },
+      { ...opts, onProgress: wantsProgress },
+    )
     // Carries the tool's declared outputSchema to toMatchOutputSchema() without
     // widening the public result shape. Non-enumerable so snapshots ignore it.
     Object.defineProperty(result, TOOL_META, {
@@ -65,11 +71,20 @@ export class McpHarness {
 
   private toolIndex?: Map<string, Awaited<ReturnType<McpHarness['listTools']>>[number]>
 
+  // Best effort: a tools/list that fails, or a tool registered after the index
+  // was built, must not turn a successful tools/call into a rejection.
   private async toolEntry(name: string) {
-    if (!this.toolIndex) {
-      this.toolIndex = new Map((await this.listTools()).map((t) => [t.name, t]))
+    try {
+      if (!this.toolIndex) {
+        this.toolIndex = new Map((await this.listTools()).map((t) => [t.name, t]))
+      }
+      if (!this.toolIndex.has(name)) {
+        this.toolIndex = new Map((await this.listTools()).map((t) => [t.name, t]))
+      }
+      return this.toolIndex.get(name)
+    } catch {
+      return undefined
     }
-    return this.toolIndex.get(name)
   }
 
   async readResource(uri: string) {
@@ -103,6 +118,9 @@ export class McpHarness {
   }
 
   async close(): Promise<void> {
+    // Drop pending waiters first: their timers would otherwise fire after the
+    // test ends and vitest would blame whichever test runs next.
+    for (const c of this.collectors) c.dispose()
     await this.conn.close()
   }
 }

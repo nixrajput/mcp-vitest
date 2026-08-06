@@ -10,6 +10,7 @@ export class NotificationCollector {
   private waiters: Array<{
     predicate: (n: CollectedNotification) => boolean
     resolve: (n: CollectedNotification) => void
+    timer: ReturnType<typeof setTimeout>
   }> = []
   private readonly started = performance.now()
 
@@ -33,17 +34,29 @@ export class NotificationCollector {
     const existing = this.items.find(predicate)
     if (existing) return Promise.resolve(existing)
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(
-        () => reject(new Error(`waitFor timed out after ${timeoutMs}ms`)),
-        timeoutMs,
-      )
+      const timer = setTimeout(() => {
+        // Drop the waiter, or its predicate keeps running on every later
+        // notification and the dead closure pins this rejected promise.
+        this.waiters = this.waiters.filter((w) => w.timer !== timer)
+        reject(new Error(`waitFor timed out after ${timeoutMs}ms`))
+      }, timeoutMs)
       this.waiters.push({
         predicate,
         resolve: (n) => {
           clearTimeout(timer)
           resolve(n)
         },
+        timer,
       })
     })
+  }
+
+  /**
+   * Abandons pending waiters without settling them. Called by harness.close():
+   * a rejection after the test has ended is reported against the next test.
+   */
+  dispose(): void {
+    for (const w of this.waiters) clearTimeout(w.timer)
+    this.waiters = []
   }
 }

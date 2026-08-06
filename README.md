@@ -211,13 +211,17 @@ await mcp.callTool('slow', { ms: 300 })
 await expect(halfway).resolves.toMatchObject({ method: 'notifications/progress' })
 ```
 
-Each item is `{ method, params, at }`, where `at` is milliseconds since the collector was created. `waitFor(predicate, timeoutMs = 5000)` resolves with the first match - including one already collected - and rejects with a timeout error otherwise.
+Each item is `{ method, params, at }`, where `at` is milliseconds since the collector was created. `waitFor(predicate, timeoutMs = 5000)` resolves with the first match - including one already collected - and rejects with a timeout error otherwise. Pending waiters are abandoned when the harness closes, so a timeout never surfaces against a later test.
+
+A progress token is attached to a call only when you pass `onProgress` or a collector is listening, so an otherwise bare `callTool` leaves the request untouched and your server's no-token path stays testable. Progress params arrive as `{ progress, total?, message? }`: the SDK consumes the token before handing them over, so items from two *concurrent* calls to the same tool cannot be told apart. Await one call at a time when you need to attribute them.
 
 **v2 servers collect progress only.** Under the 2026-07-28 stateless lifecycle, `list_changed` notifications are delivered over `subscriptions/listen`, which this harness does not open yet. v1 servers collect every notification the client receives.
 
 ### Snapshot testing
 
-Manifest helpers return normalized, deep-sorted objects - stable across runs, with `_meta` and `undefined` values dropped - so vitest's built-in snapshots catch unintended API changes to your server.
+Manifest helpers return normalized, deep-sorted objects - stable across runs, with entry-level `_meta` and `undefined` values dropped - so vitest's built-in snapshots catch unintended API changes to your server.
+
+A manifest records what the server actually reports over the wire, which includes descriptor fields your MCP SDK adds for you (for example `execution` or a `$schema` on generated schemas). An SDK upgrade can therefore move a snapshot without your server changing; review the diff and update it as you would any snapshot. Capabilities your server does not expose come back empty rather than failing, so a tools-only server snapshots cleanly.
 
 ```ts
 import { expect } from 'vitest'

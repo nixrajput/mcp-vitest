@@ -1,4 +1,5 @@
-import type { CallToolOptions, McpToolResult, RawConnection, SdkClientLike } from '../types.js'
+import type { McpToolResult, RawConnection, SdkClientLike } from '../types.js'
+import { createNotificationBus } from './bus.js'
 
 // v1 servers use the 2025-era stateful lifecycle; InMemoryTransport is the
 // SDK-blessed in-process path for it (see SDK docs/testing.md).
@@ -15,39 +16,19 @@ export async function connectV1(server: unknown): Promise<RawConnection> {
   }
   await Promise.all([connectable.connect(serverTransport), client.connect(clientTransport)])
 
-  const listeners = new Set<(n: { method: string; params: unknown }) => void>()
-  const emit = (method: string, params: unknown) => {
-    for (const l of listeners) l({ method, params })
-  }
-  // Progress never reaches the fallback: both majors register a dedicated
-  // handler for it at construction, so collectors are fed from callTool below.
-  ;(
-    client as unknown as { fallbackNotificationHandler?: (n: unknown) => Promise<void> }
-  ).fallbackNotificationHandler = async (n) => {
-    const note = n as { method: string; params: unknown }
-    emit(note.method, note.params)
-  }
+  const bus = createNotificationBus(client)
 
   let closed = false
   return {
     client: client as unknown as SdkClientLike,
-    onNotification: (cb) => {
-      listeners.add(cb)
-    },
+    onNotification: bus.onNotification,
     // v1 signature: callTool(params, resultSchema?, options?)
-    callTool: async (params, opts?: CallToolOptions) =>
+    callTool: async (params, opts) =>
       (
         client as unknown as {
           callTool: (p: unknown, s: unknown, o: unknown) => Promise<McpToolResult>
         }
-      ).callTool(params, undefined, {
-        onprogress: (p: { progress: number; total?: number; message?: string }) => {
-          emit('notifications/progress', p)
-          opts?.onProgress?.(p)
-        },
-        signal: opts?.signal,
-        timeout: opts?.timeoutMs,
-      }),
+      ).callTool(params, undefined, bus.requestOptions(opts)),
     close: async () => {
       if (closed) return
       closed = true
