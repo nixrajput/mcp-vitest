@@ -43,7 +43,7 @@ The two fixture servers share one contract on purpose: every harness and matcher
 
 ### The checks
 
-`npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly these four, in that order. `.githooks/pre-push` runs them too (`git config core.hooksPath .githooks`).
+`npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly these four in the `build` job, and repeats lint/typecheck/test on the Node 20 floor in a second job (tsdown itself needs >=22.18, so the floor job skips `build`). `.githooks/pre-push` runs them too (`git config core.hooksPath .githooks`).
 
 ### Conventions
 

@@ -13,6 +13,40 @@ import {
   type ToolCallMeta,
 } from './types.js'
 
+const MAX_PAGES = 1000
+
+/**
+ * Walks a paginated list method. A server that repeats or fails to advance its
+ * cursor would otherwise spin forever and take the vitest worker down with it,
+ * so a stalled cursor and a runaway page count both fail loudly instead.
+ */
+async function collectPages<Page extends { nextCursor?: string }, Item>(
+  fetch: (cursor?: { cursor: string }) => Promise<Page>,
+  items: (page: Page) => Item[],
+  method: string,
+): Promise<Item[]> {
+  const out: Item[] = []
+  const seen = new Set<string>()
+  let cursor: string | undefined
+  for (let page = 0; ; page++) {
+    if (page >= MAX_PAGES) {
+      throw new Error(
+        `mcp-vitest: ${method} exceeded ${MAX_PAGES} pages; pagination is not converging`,
+      )
+    }
+    const result = await fetch(cursor ? { cursor } : undefined)
+    out.push(...items(result))
+    cursor = result.nextCursor
+    if (cursor === undefined) return out
+    if (seen.has(cursor)) {
+      throw new Error(
+        `mcp-vitest: ${method} repeated cursor ${JSON.stringify(cursor)}; pagination is stuck`,
+      )
+    }
+    seen.add(cursor)
+  }
+}
+
 export class McpHarness {
   constructor(
     readonly kind: ServerKind,
@@ -33,14 +67,11 @@ export class McpHarness {
   }
 
   async listTools() {
-    const tools: Awaited<ReturnType<SdkClientLike['listTools']>>['tools'] = []
-    let cursor: string | undefined
-    do {
-      const page = await this.conn.client.listTools(cursor ? { cursor } : undefined)
-      tools.push(...page.tools)
-      cursor = page.nextCursor
-    } while (cursor)
-    return tools
+    return collectPages(
+      (cursor) => this.conn.client.listTools(cursor),
+      (p) => p.tools,
+      'tools/list',
+    )
   }
 
   async callTool(
@@ -48,27 +79,32 @@ export class McpHarness {
     args?: Record<string, unknown>,
     opts?: CallToolOptions,
   ): Promise<McpToolResult> {
-    // Only ask the SDK for progress when someone is listening: it attaches
+    // Only ask the SDK for progress when someone can receive it: it attaches
     // _meta.progressToken whenever onprogress is set, and servers branch on it.
-    const wantsProgress = opts?.onProgress ?? (this.collectors.length > 0 ? () => {} : undefined)
+    // A collector filtered to another method must not change what the server sees.
+    const collecting = this.collectors.some((c) => c.wantsProgress)
+    const wantsProgress = opts?.onProgress ?? (collecting ? () => {} : undefined)
     const result = await this.conn.callTool(
       { name, arguments: args },
       { ...opts, onProgress: wantsProgress },
     )
     // Carries the tool's declared outputSchema to toMatchOutputSchema() without
     // widening the public result shape. Non-enumerable so snapshots ignore it.
-    Object.defineProperty(result, TOOL_META, {
-      value: {
-        toolName: name,
-        outputSchema: (await this.toolEntry(name))?.outputSchema as
-          | Record<string, unknown>
-          | undefined,
-      } satisfies ToolCallMeta,
-      enumerable: false,
-      // Redefinable: an SDK that hands back a cached result object would
-      // otherwise throw on the second call.
-      configurable: true,
-    })
+    // Best effort by design: a frozen or sealed result must not fail the call.
+    try {
+      Object.defineProperty(result, TOOL_META, {
+        value: {
+          toolName: name,
+          outputSchema: (await this.toolEntry(name))?.outputSchema as
+            | Record<string, unknown>
+            | undefined,
+        } satisfies ToolCallMeta,
+        enumerable: false,
+        configurable: true,
+      })
+    } catch {
+      // non-extensible result: toMatchOutputSchema() needs an explicit schema
+    }
     return result
   }
 
@@ -95,25 +131,19 @@ export class McpHarness {
   }
 
   async listResources() {
-    const resources: Awaited<ReturnType<SdkClientLike['listResources']>>['resources'] = []
-    let cursor: string | undefined
-    do {
-      const page = await this.conn.client.listResources(cursor ? { cursor } : undefined)
-      resources.push(...page.resources)
-      cursor = page.nextCursor
-    } while (cursor)
-    return resources
+    return collectPages(
+      (cursor) => this.conn.client.listResources(cursor),
+      (p) => p.resources,
+      'resources/list',
+    )
   }
 
   async listPrompts() {
-    const prompts: Awaited<ReturnType<SdkClientLike['listPrompts']>>['prompts'] = []
-    let cursor: string | undefined
-    do {
-      const page = await this.conn.client.listPrompts(cursor ? { cursor } : undefined)
-      prompts.push(...page.prompts)
-      cursor = page.nextCursor
-    } while (cursor)
-    return prompts
+    return collectPages(
+      (cursor) => this.conn.client.listPrompts(cursor),
+      (p) => p.prompts,
+      'prompts/list',
+    )
   }
 
   async getPrompt(name: string, args?: Record<string, string>) {

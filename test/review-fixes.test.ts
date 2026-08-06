@@ -144,15 +144,26 @@ describe('snapshot normalization', () => {
   test('_meta inside a user schema survives, unlike entry-level _meta', async () => {
     const server = new McpServer({ name: 'meta', version: '1.0.0' })
     server.registerTool(
-      'has-meta-prop',
+      'has-nested-prop',
       {
-        description: 'Declares a property literally named _meta',
+        // Must not mention the property name: the description is serialized into
+        // the manifest, which would satisfy a substring assertion on its own.
+        description: 'Declares a reserved-looking property',
         inputSchema: { _meta: (await import('zod')).z.string() },
       },
       async () => ({ content: [{ type: 'text', text: 'ok' }] }),
     )
     const mcp = await mcpTest(server)
-    const manifest = JSON.stringify(await toolManifest(mcp))
-    expect(manifest).toContain('_meta')
+    const manifest = (await toolManifest(mcp)) as Array<{
+      inputSchema?: { properties?: Record<string, unknown> }
+    }>
+    expect(manifest[0]?.inputSchema?.properties).toHaveProperty('_meta')
+  })
+
+  test('pagination that never advances fails instead of hanging', async () => {
+    const mcp = await mcpTest(createV1Server())
+    const client = mcp.client as unknown as { listTools: () => Promise<unknown> }
+    client.listTools = () => Promise.resolve({ tools: [{ name: 'a' }], nextCursor: 'same' })
+    await expect(mcp.listTools()).rejects.toThrow(/repeated cursor|not converging/i)
   })
 })

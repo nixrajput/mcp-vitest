@@ -31,9 +31,14 @@ export async function connectV1(server: unknown): Promise<RawConnection> {
       ).callTool(params, undefined, bus.requestOptions(opts)),
     close: async () => {
       if (closed) return
-      closed = true
-      await client.close()
-      await connectable.close?.()
+      // The server must be closed even if the client transport is already gone,
+      // and `closed` flips only on success so a caller can retry teardown.
+      try {
+        await client.close()
+      } finally {
+        await connectable.close?.()
+        closed = true
+      }
     },
   }
 }

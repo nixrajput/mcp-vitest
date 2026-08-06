@@ -37,9 +37,11 @@ jobs:
             echo "::error::package.json version not bumped (still $BASE). Bump it: patch for fixes, minor for features, major for breaking."
             exit 1
           fi
-          greater=$(printf '%s\n%s\n' "$BASE" "$PR" | sort -V | tail -n1)
-          if [ "$greater" != "$PR" ]; then
-            echo "::error::package.json version $PR is lower than base $BASE; it must move forward."
+          # semver, not `sort -V`: sort -V ranks 1.0.0-rc.1 above 1.0.0, which
+          # would block an rc-to-final promotion and accept a backwards move to
+          # a prerelease of an already-released version.
+          if ! npx --yes semver -r ">$BASE" "$PR" >/dev/null 2>&1; then
+            echo "::error::package.json version $PR does not rank above base $BASE (semver); it must move forward."
             exit 1
           fi
           echo "Version bumped $BASE -> $PR"

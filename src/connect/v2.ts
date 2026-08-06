@@ -35,9 +35,14 @@ export async function connectV2(
       ).callTool(params, bus.requestOptions(opts)),
     close: async () => {
       if (closed) return
-      closed = true
-      await client.close()
-      await handler.close()
+      // The handler must be closed even if the client transport is already gone,
+      // and `closed` flips only on success so a caller can retry teardown.
+      try {
+        await client.close()
+      } finally {
+        await handler.close()
+        closed = true
+      }
     },
   }
 }

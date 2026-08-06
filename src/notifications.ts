@@ -14,10 +14,15 @@ export class NotificationCollector {
   }> = []
   private readonly started = performance.now()
 
-  constructor(private readonly methodFilter?: string) {}
+  constructor(readonly method?: string) {}
+
+  /** Whether this collector would accept a progress notification. */
+  get wantsProgress(): boolean {
+    return !this.method || this.method === 'notifications/progress'
+  }
 
   push(method: string, params: unknown): void {
-    if (this.methodFilter && method !== this.methodFilter) return
+    if (this.method && method !== this.method) return
     const item = { method, params, at: performance.now() - this.started }
     this.items.push(item)
     this.waiters = this.waiters.filter((w) => {

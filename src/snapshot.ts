@@ -27,9 +27,15 @@ function normalizeEntries(entries: unknown[]): unknown {
 // honest answer. Anything else is a real failure and must not be swallowed into
 // an empty manifest that snapshots green.
 function isUnsupportedCapability(error: unknown): boolean {
+  if ((error as { code?: unknown })?.code === -32601) return true
   const message = error instanceof Error ? error.message : String(error)
-  const code = (error as { code?: unknown })?.code
-  return code === -32601 || /-32601|method not found|does not support/i.test(message)
+  // Anchored on purpose: a substring match anywhere would treat a real failure
+  // like "backend does not support this query yet" as an absent capability.
+  return (
+    /^(MCP error )?-32601\b/.test(message) ||
+    /^Server does not support /.test(message) ||
+    /^Method not found\b/i.test(message)
+  )
 }
 
 async function orEmpty<T>(list: Promise<T[]>): Promise<T[]> {
@@ -41,19 +47,30 @@ async function orEmpty<T>(list: Promise<T[]>): Promise<T[]> {
   }
 }
 
+// Code-unit order, not localeCompare: collation depends on the host's ICU data
+// and default locale, so a committed snapshot could churn on a different CI
+// image. This is also the order capabilitiesManifest uses, so the two agree.
+function byKey<T>(key: (item: T) => string) {
+  return (a: T, b: T) => {
+    const x = key(a)
+    const y = key(b)
+    return x < y ? -1 : x > y ? 1 : 0
+  }
+}
+
 export async function toolManifest(mcp: McpHarness): Promise<unknown> {
   const tools = await orEmpty(mcp.listTools())
-  return normalizeEntries([...tools].sort((a, b) => a.name.localeCompare(b.name)))
+  return normalizeEntries([...tools].sort(byKey((t) => t.name)))
 }
 
 export async function resourceManifest(mcp: McpHarness): Promise<unknown> {
   const resources = await orEmpty(mcp.listResources())
-  return normalizeEntries([...resources].sort((a, b) => a.uri.localeCompare(b.uri)))
+  return normalizeEntries([...resources].sort(byKey((r) => r.uri)))
 }
 
 export async function promptManifest(mcp: McpHarness): Promise<unknown> {
   const prompts = await orEmpty(mcp.listPrompts())
-  return normalizeEntries([...prompts].sort((a, b) => a.name.localeCompare(b.name)))
+  return normalizeEntries([...prompts].sort(byKey((p) => p.name)))
 }
 
 export async function capabilitiesManifest(mcp: McpHarness): Promise<unknown> {
