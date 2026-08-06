@@ -34,6 +34,36 @@ export class McpHarness {
     return this.conn.client.callTool({ name, arguments: args })
   }
 
+  async readResource(uri: string) {
+    return this.conn.client.readResource({ uri })
+  }
+
+  async listResources() {
+    const resources: Awaited<ReturnType<SdkClientLike['listResources']>>['resources'] = []
+    let cursor: string | undefined
+    do {
+      const page = await this.conn.client.listResources(cursor ? { cursor } : undefined)
+      resources.push(...page.resources)
+      cursor = page.nextCursor
+    } while (cursor)
+    return resources
+  }
+
+  async listPrompts() {
+    const prompts: Awaited<ReturnType<SdkClientLike['listPrompts']>>['prompts'] = []
+    let cursor: string | undefined
+    do {
+      const page = await this.conn.client.listPrompts(cursor ? { cursor } : undefined)
+      prompts.push(...page.prompts)
+      cursor = page.nextCursor
+    } while (cursor)
+    return prompts
+  }
+
+  async getPrompt(name: string, args?: Record<string, string>) {
+    return this.conn.client.getPrompt({ name, arguments: args })
+  }
+
   async close(): Promise<void> {
     await this.conn.close()
   }

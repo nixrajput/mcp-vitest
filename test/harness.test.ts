@@ -46,3 +46,31 @@ describe('mcpTest', () => {
     await mcp.close()
   })
 })
+
+describe.each([
+  ['v1', () => mcpTest(createV1Server(), { autoClose: false })],
+  ['v2', () => mcpTest(() => createV2Server(), { autoClose: false })],
+])('harness surface (%s)', (_label, make) => {
+  test('readResource returns contents', async () => {
+    const mcp = await make()
+    const { contents } = await mcp.readResource('demo://greeting')
+    expect(contents[0]).toMatchObject({ text: 'hello' })
+    await mcp.close()
+  })
+
+  test('listResources and listPrompts include fixtures', async () => {
+    const mcp = await make()
+    const resources = await mcp.listResources()
+    expect(resources.map((r) => r.uri)).toContain('demo://greeting')
+    const prompts = await mcp.listPrompts()
+    expect(prompts.map((p) => p.name)).toContain('greet')
+    await mcp.close()
+  })
+
+  test('getPrompt renders arguments', async () => {
+    const mcp = await make()
+    const { messages } = await mcp.getPrompt('greet', { name: 'Ada' })
+    expect(JSON.stringify(messages)).toContain('Greet Ada')
+    await mcp.close()
+  })
+})
