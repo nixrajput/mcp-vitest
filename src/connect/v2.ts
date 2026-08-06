@@ -1,4 +1,4 @@
-import type { RawConnection, SdkClientLike } from '../types.js'
+import type { CallToolOptions, McpToolResult, RawConnection, SdkClientLike } from '../types.js'
 
 // v2 in-process route per SDK docs/testing.md: createMcpHandler gives a
 // fetch-style handler, and the client transport's fetch is pointed at it.
@@ -20,6 +20,17 @@ export async function connectV2(
   let closed = false
   return {
     client: client as unknown as SdkClientLike,
+    // v2 dropped the resultSchema parameter: callTool(params, options?)
+    callTool: async (params, opts?: CallToolOptions) =>
+      (
+        client as unknown as {
+          callTool: (p: unknown, o: unknown) => Promise<McpToolResult>
+        }
+      ).callTool(params, {
+        onprogress: opts?.onProgress,
+        signal: opts?.signal,
+        timeout: opts?.timeoutMs,
+      }),
     close: async () => {
       if (closed) return
       closed = true

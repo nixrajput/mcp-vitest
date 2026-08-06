@@ -2,6 +2,7 @@ import { connectV1 } from './connect/v1.js'
 import { connectV2 } from './connect/v2.js'
 import { detectServerKind, type ServerKind } from './detect.js'
 import type {
+  CallToolOptions,
   McpServerInput,
   McpTestOptions,
   McpToolResult,
@@ -30,8 +31,12 @@ export class McpHarness {
     return tools
   }
 
-  async callTool(name: string, args?: Record<string, unknown>): Promise<McpToolResult> {
-    return this.conn.client.callTool({ name, arguments: args })
+  async callTool(
+    name: string,
+    args?: Record<string, unknown>,
+    opts?: CallToolOptions,
+  ): Promise<McpToolResult> {
+    return this.conn.callTool({ name, arguments: args }, opts)
   }
 
   async readResource(uri: string) {

@@ -1,4 +1,4 @@
-import type { RawConnection, SdkClientLike } from '../types.js'
+import type { CallToolOptions, McpToolResult, RawConnection, SdkClientLike } from '../types.js'
 
 // v1 servers use the 2025-era stateful lifecycle; InMemoryTransport is the
 // SDK-blessed in-process path for it (see SDK docs/testing.md).
@@ -18,6 +18,17 @@ export async function connectV1(server: unknown): Promise<RawConnection> {
   let closed = false
   return {
     client: client as unknown as SdkClientLike,
+    // v1 signature: callTool(params, resultSchema?, options?)
+    callTool: async (params, opts?: CallToolOptions) =>
+      (
+        client as unknown as {
+          callTool: (p: unknown, s: unknown, o: unknown) => Promise<McpToolResult>
+        }
+      ).callTool(params, undefined, {
+        onprogress: opts?.onProgress,
+        signal: opts?.signal,
+        timeout: opts?.timeoutMs,
+      }),
     close: async () => {
       if (closed) return
       closed = true

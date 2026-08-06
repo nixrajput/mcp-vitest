@@ -31,8 +31,19 @@ export interface SdkClientLike {
   close(): Promise<void>
 }
 
+export interface CallToolOptions {
+  onProgress?: (p: { progress: number; total?: number; message?: string }) => void
+  signal?: AbortSignal
+  timeoutMs?: number
+}
+
 export interface RawConnection {
   client: SdkClientLike
+  /** Per-major adapter: maps CallToolOptions onto that SDK's request options. */
+  callTool(
+    params: { name: string; arguments?: Record<string, unknown> },
+    opts?: CallToolOptions,
+  ): Promise<McpToolResult>
   close(): Promise<void>
 }
 
