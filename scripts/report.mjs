@@ -40,6 +40,15 @@ function run(cmd, args, env) {
   }
 }
 
+/** Like run(), but returns null on a non-zero exit instead of the error text. */
+function runOk(cmd, args) {
+  try {
+    return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+  } catch {
+    return null
+  }
+}
+
 const kB = (n) => `${(n / 1024).toFixed(2)} kB`
 
 function deltaOf(now, before) {
@@ -70,7 +79,7 @@ function measureDist(dir) {
 function publishedBaseline() {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-vitest-baseline-'))
   try {
-    const version = run('npm', ['view', pkg.name, 'version']).trim()
+    const version = runOk('npm', ['view', pkg.name, 'version'])?.trim()
     if (!version) return null
     run('npm', ['pack', `${pkg.name}@${version}`, '--pack-destination', dir])
     const tgz = readdirSync(dir).find((f) => f.endsWith('.tgz'))
@@ -87,8 +96,17 @@ function publishedBaseline() {
 
 function size() {
   // In hook mode the gate built dist/ seconds ago; rebuilding wastes ~1.9s.
-  if (!FAST) run('npm', ['run', 'build'])
-  const local = measureDist('dist')
+  const buildOutput = FAST ? '' : run('npm', ['run', 'build'])
+  let local
+  try {
+    local = measureDist('dist')
+  } catch (error) {
+    const tail = buildOutput.trim().split('\n').slice(-10).join('\n')
+    return [
+      'bundle size, gzipped: build failed, dist/ missing or unreadable',
+      tail || `(no build output captured: ${error.message})`,
+    ]
+  }
   const packed = JSON.parse(run('npm', ['pack', '--dry-run', '--json']))[0]
   const base = publishedBaseline()
   const before = new Map((base?.entries ?? []).map((e) => [e.name, e]))
