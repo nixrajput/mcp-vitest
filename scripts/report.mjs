@@ -146,7 +146,28 @@ function bench() {
   ]
 }
 
-const COLLECTORS = { size, bench }
+function health() {
+  const knip = run('npx', ['knip', '--no-progress'])
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => `  ${l.trimEnd()}`)
+  return [
+    'package health',
+    '  publint + attw: enforced by npm run build (a failure would have stopped this push)',
+    ...(knip.length ? knip : ['  knip: no output']),
+  ]
+}
+
+function coverage() {
+  const out = run('npx', ['vitest', 'run', '--coverage', '--coverage.reporter=text-summary'])
+  const summary = out
+    .split('\n')
+    .filter((l) => /Statements|Branches|Functions|Lines|Coverage report/.test(l))
+    .map((l) => `  ${l.trim()}`)
+  return ['coverage', ...(summary.length ? summary : ['  no coverage summary captured'])]
+}
+
+const COLLECTORS = { size, bench, health, coverage }
 
 const selected = (ONLY ?? Object.keys(COLLECTORS)).filter((name) => {
   if (COLLECTORS[name]) return true
