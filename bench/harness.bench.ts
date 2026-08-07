@@ -8,6 +8,9 @@ import { createV2Server } from '../test/servers/v2.js'
 // vitest.config.ts setupFiles applies to tests, not bench runs.
 registerMatchers()
 
+// No @types/node: tsconfig.json's types: [] deliberately keeps Node globals out of src/.
+declare const process: { env: Record<string, string | undefined> }
+
 // Kept short in hook mode: these numbers are indicative, not publication grade.
 const time = Number(process.env.MCP_VITEST_BENCH_TIME_MS ?? 500)
 const opts = { time, warmupTime: Math.min(100, time) }
