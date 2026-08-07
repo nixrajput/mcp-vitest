@@ -84,7 +84,23 @@ export interface RawConnection {
   close(): Promise<void>
 }
 
-export type McpServerInput = unknown | (() => unknown | Promise<unknown>)
+/** Spawns a server as a child process and speaks MCP over its stdio pipes. */
+export interface StdioServerSpec {
+  command: string
+  args?: string[]
+  env?: Record<string, string>
+  cwd?: string
+}
+
+export function isStdioServerSpec(input: unknown): input is StdioServerSpec {
+  return (
+    typeof input === 'object' &&
+    input !== null &&
+    typeof (input as StdioServerSpec).command === 'string'
+  )
+}
+
+export type McpServerInput = StdioServerSpec | unknown | (() => unknown | Promise<unknown>)
 
 export interface McpTestOptions {
   /** Auto-close via vitest onTestFinished when inside a test. Default true. */

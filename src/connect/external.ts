@@ -1,0 +1,67 @@
+import type { DoubleRegistry } from '../doubles.js'
+import type { McpToolResult, RawConnection, SdkClientLike, StdioServerSpec } from '../types.js'
+import { createNotificationBus } from './bus.js'
+
+/**
+ * Spawns a server and speaks MCP over its stdio pipes. The v1 client is used
+ * deliberately: external servers are the deployed fleet, and v1 speaks the widest
+ * range of revisions those servers actually implement.
+ */
+export async function connectStdio(
+  spec: StdioServerSpec,
+  registry: DoubleRegistry,
+): Promise<RawConnection> {
+  const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
+  const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
+
+  const transport = new StdioClientTransport({
+    command: spec.command,
+    args: spec.args,
+    env: spec.env,
+    cwd: spec.cwd,
+  })
+  // Same capability advertisement and handler wiring as the in-process v1 lane:
+  // a spawned server is still a v1 server, so doubles and notifications work
+  // across the pipe rather than being stubbed out.
+  const client = new Client(
+    { name: 'mcp-vitest', version: '0.4.0' },
+    { capabilities: { sampling: {}, elicitation: {}, roots: {} } },
+  )
+
+  const { CreateMessageRequestSchema, ElicitRequestSchema, ListRootsRequestSchema } = await import(
+    '@modelcontextprotocol/sdk/types.js'
+  )
+  client.setRequestHandler(
+    CreateMessageRequestSchema,
+    async (req) => registry.requireSampling()(req.params as never) as never,
+  )
+  client.setRequestHandler(
+    ElicitRequestSchema,
+    async (req) => registry.requireElicitation()(req.params as never) as never,
+  )
+  client.setRequestHandler(ListRootsRequestSchema, async () => ({
+    roots: registry.requireRoots(),
+  }))
+
+  const bus = createNotificationBus(client)
+  await client.connect(transport)
+
+  let closed = false
+  return {
+    client: client as unknown as SdkClientLike,
+    onNotification: bus.onNotification,
+    callTool: async (params, opts) =>
+      (
+        client as unknown as {
+          callTool: (p: unknown, s: unknown, o: unknown) => Promise<McpToolResult>
+        }
+      ).callTool(params, undefined, bus.requestOptions(opts)),
+    close: async () => {
+      if (closed) return
+      // Closing the client closes the transport, which terminates the child.
+      // `closed` flips only on success so a caller can retry teardown.
+      await client.close()
+      closed = true
+    },
+  }
+}

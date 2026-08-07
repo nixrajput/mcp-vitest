@@ -1,4 +1,9 @@
-export type ServerKind = 'v1' | 'v2'
+/**
+ * `external` covers servers mcp-vitest did not construct - a spawned stdio
+ * process or a remote URL. `detectServerKind` never returns it: those inputs are
+ * recognized by shape and routed before any SDK detection happens.
+ */
+export type ServerKind = 'v1' | 'v2' | 'external'
 
 const MISSING_MODULE = new Set(['ERR_MODULE_NOT_FOUND', 'ERR_PACKAGE_PATH_NOT_EXPORTED'])
 

@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest'
+import { mcpTest } from '../src/index.js'
 import { serveHandler } from '../src/serve.js'
 
 describe('serveHandler', () => {
@@ -108,4 +109,36 @@ describe('serveHandler', () => {
     ).resolves.toBe('closed')
     await reader?.cancel().catch(() => {})
   }, 10_000)
+})
+
+describe('stdio transport', () => {
+  const spawn = () => mcpTest({ command: 'node', args: ['test/servers/stdio-server.mjs'] })
+
+  test('spawns and tests an external stdio server', async () => {
+    const mcp = await spawn()
+    expect(mcp.kind).toBe('external')
+    await expect(mcp).toHaveTool('echo')
+    expect(await mcp.callTool('echo', { message: 'proc' })).toHaveTextContent('echo: proc')
+  })
+
+  test('the rest of the harness works across the process boundary', async () => {
+    const mcp = await spawn()
+    await expect(mcp).toHaveResource('demo://greeting')
+    const { contents } = await mcp.readResource('demo://greeting')
+    expect(contents[0]?.text).toBe('hello')
+  })
+
+  // The plan stubbed notifications and doubles out for stdio. Both work over a
+  // real pipe, and asserting it here stops either becoming a silent no-op.
+  test('doubles answer across the pipe', async () => {
+    const mcp = await spawn()
+    mcp.onElicitation({ action: 'accept', content: { confirm: true } })
+    expect(await mcp.callTool('ask', { question: 'Proceed?' })).toHaveTextContent(
+      'answer: {"confirm":true}',
+    )
+  })
+
+  test('an unspawnable command fails with a clear error', async () => {
+    await expect(mcpTest({ command: 'definitely-not-a-real-binary-xyz' })).rejects.toThrow()
+  })
 })
