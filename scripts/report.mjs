@@ -49,14 +49,57 @@ function runOk(cmd, args) {
   }
 }
 
+// An unreachable registry (eg. npm_config_registry pointed at a dead host) must
+// degrade, not hang a pre-push hook where the only escape is Ctrl-C.
+const NPM_TIMEOUT = ['--fetch-timeout=5000', '--fetch-retries=1']
+
+// Colour only when a human is looking: piping to a file, a pipeline, or CI's
+// step summary must stay plain, or ANSI escapes end up as literal garbage.
+// NO_COLOR is the cross-tool standard; FORCE_COLOR overrides for demos.
+const COLOR =
+  !process.env.NO_COLOR && (Boolean(process.stdout.isTTY) || process.env.FORCE_COLOR === '1')
+
+const paint = (open) => (text) => (COLOR ? `[${open}m${text}[0m` : String(text))
+
+const c = {
+  head: paint('1;36'), // bold cyan
+  label: paint('37'), // plain grey
+  value: paint('1'), // bold
+  good: paint('32'), // green
+  bad: paint('33'), // yellow, not red: this report never blocks anything
+  dim: paint('2'),
+}
+
+// Progress goes to stderr, never stdout: stdout is the report's data and CI
+// pipes it into a markdown fence. Only shown on an interactive stderr, because
+// CI captures stderr into the PR summary (Task 4's crash-diagnostic fix).
+const PROGRESS = Boolean(process.stderr.isTTY) && !process.env.NO_COLOR
+let progressWidth = 0
+
+function progress(label) {
+  if (!PROGRESS) return
+  const line = `  ${label}...`
+  progressWidth = line.length
+  process.stderr.write(`\r${line}`)
+}
+
+function progressDone() {
+  if (!PROGRESS || progressWidth === 0) return
+  // Overwrite with spaces, then return to column 0, so the finished section's
+  // output starts on a clean line and no progress text survives in the scroll.
+  process.stderr.write(`\r${' '.repeat(progressWidth)}\r`)
+  progressWidth = 0
+}
+
 const kB = (n) => `${(n / 1024).toFixed(2)} kB`
 
 function deltaOf(now, before) {
-  if (before === undefined) return 'new'
+  if (before === undefined) return c.dim('new')
   const d = now - before
-  if (d === 0) return '='
+  if (d === 0) return c.dim('=')
   const pct = before === 0 ? 0 : Math.round((d / before) * 100)
-  return `${d > 0 ? '+' : ''}${kB(d)} (${d > 0 ? '+' : ''}${pct}%)`
+  const text = `${d > 0 ? '+' : ''}${kB(d)} (${d > 0 ? '+' : ''}${pct}%)`
+  return d > 0 ? c.bad(text) : c.good(text)
 }
 
 // tsdown gives shared chunks a content hash, so the same logical file has a
@@ -79,9 +122,9 @@ function measureDist(dir) {
 function publishedBaseline() {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-vitest-baseline-'))
   try {
-    const version = runOk('npm', ['view', pkg.name, 'version'])?.trim()
+    const version = runOk('npm', ['view', pkg.name, 'version', ...NPM_TIMEOUT])?.trim()
     if (!version) return null
-    run('npm', ['pack', `${pkg.name}@${version}`, '--pack-destination', dir])
+    run('npm', ['pack', `${pkg.name}@${version}`, '--pack-destination', dir, ...NPM_TIMEOUT])
     const tgz = readdirSync(dir).find((f) => f.endsWith('.tgz'))
     if (!tgz) return null
     const tarball = statSync(join(dir, tgz)).size
@@ -112,21 +155,27 @@ function size() {
   const before = new Map((base?.entries ?? []).map((e) => [e.name, e]))
 
   const lines = [
-    base
-      ? `bundle size, gzipped, vs ${pkg.name}@${base.version} on npm`
-      : 'bundle size, gzipped (no published baseline: offline or unpublished)',
+    c.head(
+      base
+        ? `bundle size, gzipped, vs ${pkg.name}@${base.version} on npm`
+        : 'bundle size, gzipped (no published baseline: offline or unpublished)',
+    ),
   ]
   for (const e of local) {
     lines.push(
-      `  ${e.name.padEnd(28)} ${kB(e.gz).padStart(10)}  ${deltaOf(e.gz, before.get(e.name)?.gz)}`,
+      `  ${c.label(e.name.padEnd(28))} ${c.value(kB(e.gz).padStart(10))}  ${deltaOf(e.gz, before.get(e.name)?.gz)}`,
     )
     before.delete(e.name)
   }
-  for (const gone of before.keys()) lines.push(`  ${gone.padEnd(28)} ${'removed'.padStart(10)}`)
+  for (const gone of before.keys()) {
+    lines.push(`  ${c.label(gone.padEnd(28))} ${c.dim('removed'.padStart(10))}`)
+  }
   lines.push(
-    `  ${'tarball download'.padEnd(28)} ${kB(packed.size).padStart(10)}  ${deltaOf(packed.size, base?.tarball)}`,
+    `  ${c.label('tarball download'.padEnd(28))} ${c.value(kB(packed.size).padStart(10))}  ${deltaOf(packed.size, base?.tarball)}`,
   )
-  lines.push(`  ${'tarball on disk'.padEnd(28)} ${kB(packed.unpackedSize).padStart(10)}`)
+  lines.push(
+    `  ${c.label('tarball on disk'.padEnd(28))} ${c.value(kB(packed.unpackedSize).padStart(10))}`,
+  )
   return lines
 }
 
@@ -139,9 +188,11 @@ function bench() {
     .filter((l) => /·|name\s|hz|✓|×/.test(l) && !/^\s*$/.test(l))
     .map((l) => `  ${l.trimEnd()}`)
   return [
-    FAST
-      ? 'benchmarks (indicative: 100ms samples on your machine, expect 10-30% swing)'
-      : 'benchmarks (500ms samples)',
+    c.head(
+      FAST
+        ? 'benchmarks (indicative: 100ms samples on your machine, expect 10-30% swing)'
+        : 'benchmarks (500ms samples)',
+    ),
     ...(table.length ? table : ['  no benchmark output captured']),
   ]
 }
@@ -152,8 +203,8 @@ function health() {
     .filter((l) => l.trim())
     .map((l) => `  ${l.trimEnd()}`)
   return [
-    'package health',
-    '  publint + attw: enforced by npm run build (a failure would have stopped this push)',
+    c.head('package health'),
+    c.dim('  publint + attw: enforced by npm run build (a failure would have stopped this push)'),
     ...(knip.length ? knip : ['  knip: no output']),
   ]
 }
@@ -164,7 +215,7 @@ function coverage() {
     .split('\n')
     .filter((l) => /Statements|Branches|Functions|Lines|Coverage report/.test(l))
     .map((l) => `  ${l.trim()}`)
-  return ['coverage', ...(summary.length ? summary : ['  no coverage summary captured'])]
+  return [c.head('coverage'), ...(summary.length ? summary : ['  no coverage summary captured'])]
 }
 
 const SLOW_3G_BYTES_PER_SEC = 50 * 1024
@@ -222,7 +273,7 @@ function localMinified() {
 const ms = (bytes, rate) => `${Math.round((bytes / rate) * 1000)} ms`
 
 function bundle() {
-  const version = run('npm', ['view', pkg.name, 'version']).trim()
+  const version = run('npm', ['view', pkg.name, 'version', ...NPM_TIMEOUT]).trim()
   const published = version ? fetchPublishedBundle(version) : null
   const lines = []
 
@@ -230,26 +281,32 @@ function bundle() {
     const deps = published.dependencySizes ?? []
     const total = deps.reduce((sum, d) => sum + d.approximateSize, 0)
     lines.push(
-      `bundle, published ${pkg.name}@${version} (Bundlephobia: bundled with dependencies)`,
-      `  ${'minified'.padEnd(24)} ${kB(published.size).padStart(10)}`,
-      `  ${'minified + gzipped'.padEnd(24)} ${kB(published.gzip).padStart(10)}`,
-      `  ${'download slow 3G'.padEnd(24)} ${ms(published.gzip, SLOW_3G_BYTES_PER_SEC).padStart(10)}`,
-      `  ${'download 4G'.padEnd(24)} ${ms(published.gzip, FOUR_G_BYTES_PER_SEC).padStart(10)}`,
+      c.head(`bundle, published ${pkg.name}@${version} (Bundlephobia: bundled with dependencies)`),
+      `  ${c.label('minified'.padEnd(24))} ${c.value(kB(published.size).padStart(10))}`,
+      `  ${c.label('minified + gzipped'.padEnd(24))} ${c.value(kB(published.gzip).padStart(10))}`,
+      `  ${c.label('download slow 3G'.padEnd(24))} ${c.value(ms(published.gzip, SLOW_3G_BYTES_PER_SEC).padStart(10))}`,
+      `  ${c.label('download 4G'.padEnd(24))} ${c.value(ms(published.gzip, FOUR_G_BYTES_PER_SEC).padStart(10))}`,
       `  dependencies: ${published.dependencyCount ?? deps.length}`,
     )
     for (const d of deps.sort((a, b) => b.approximateSize - a.approximateSize)) {
       const pct = total ? ((d.approximateSize / total) * 100).toFixed(1) : '0.0'
-      lines.push(`    ${d.name.padEnd(30)} ${kB(d.approximateSize).padStart(10)}  ${pct}%`)
+      lines.push(
+        `    ${c.label(d.name.padEnd(30))} ${c.value(kB(d.approximateSize).padStart(10))}  ${pct}%`,
+      )
     }
   } else {
-    lines.push('bundle, published: unavailable (offline, rate limited, or unpublished version)')
+    lines.push(
+      c.head('bundle, published: unavailable (offline, rate limited, or unpublished version)'),
+    )
   }
 
   const local = localMinified()
   lines.push(
     local
-      ? `  local src/index.ts minified ${kB(local.raw)}, gzipped ${kB(local.gz)} (dependencies external, not comparable to the figures above)`
-      : '  local minified: unavailable',
+      ? c.dim(
+          `  local src/index.ts minified ${kB(local.raw)}, gzipped ${kB(local.gz)} (dependencies external, not comparable to the figures above)`,
+        )
+      : c.dim('  local minified: unavailable'),
   )
   return lines
 }
@@ -265,9 +322,15 @@ const selected = (ONLY ?? Object.keys(COLLECTORS)).filter((name) => {
 const started = Date.now()
 for (const name of selected) {
   try {
-    console.log(`\n${COLLECTORS[name]().join('\n')}`)
+    progress(`collecting ${name}`)
+    const lines = COLLECTORS[name]()
+    progressDone()
+    console.log(`\n${lines.join('\n')}`)
   } catch (error) {
-    console.log(`\n${name}: collector failed (${error.message})`)
+    progressDone()
+    console.log(`\n${c.bad(`${name}: collector failed (${error.message})`)}`)
   }
 }
-console.log(`\nreport: ${selected.join(', ')} in ${((Date.now() - started) / 1000).toFixed(1)}s`)
+console.log(
+  c.dim(`\nreport: ${selected.join(', ')} in ${((Date.now() - started) / 1000).toFixed(1)}s`),
+)

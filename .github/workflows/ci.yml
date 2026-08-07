@@ -72,6 +72,8 @@ jobs:
         run: |
           if [ -f package-lock.json ]; then npm ci; else npm install; fi
       - name: Full report
+        env:
+          NO_COLOR: '1'
         run: |
           {
             echo '## mcp-vitest report'
