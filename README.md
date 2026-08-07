@@ -423,7 +423,9 @@ Everything from 0.2 keeps working. Two changes alter what your server sees, so t
 **v2 connections now negotiate 2026-07-28.** Through 0.2.1 the v2 lane negotiated `2025-11-25`, because the client's `versionNegotiation` defaults to `'legacy'` and nothing overrode it. The 2026 era is required for doubles to work at all - a 2025-era v2 connection has no channel for server-to-client requests. Progress collection was verified unaffected by the change. To get the old behavior:
 
 ```ts
-const mcp = await mcpTest(() => createServer(), { protocolVersion: "2025-11-25" });
+const mcp = await mcpTest(() => createServer(), {
+  protocolVersion: "2025-11-25",
+});
 ```
 
 **The test client now advertises `sampling`, `elicitation`, and `roots`.** Capabilities are declared at connect, long before a test body can register a double, so they are advertised unconditionally. If your server branches on the client's declared capabilities, it will now take its sampling or elicitation path where 0.2.1 made it take the fallback - and without a registered double that call fails with `the server requested sampling but no double is registered`. Register the double, or assert the fallback path against a server you construct without those branches.
