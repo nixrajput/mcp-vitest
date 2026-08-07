@@ -1,5 +1,10 @@
+export interface SamplingMessage {
+  role: string
+  content: unknown
+}
+
 export interface SamplingRequest {
-  messages: unknown[]
+  messages: SamplingMessage[]
   maxTokens?: number
   systemPrompt?: string
   [k: string]: unknown
@@ -16,12 +21,19 @@ export type SamplingDouble = (req: SamplingRequest) => Promise<SamplingResult> |
 
 export interface ElicitationRequest {
   message: string
-  requestedSchema: unknown
+  /** Absent in 2026 URL-mode elicitation, which carries a `url` instead. */
+  requestedSchema?: unknown
+  [k: string]: unknown
 }
 
+/**
+ * `content` is narrowed to what the wire accepts. The spec's elicitation result
+ * takes primitives and string arrays only, so a nested object here would
+ * typecheck and then fail protocol validation at runtime.
+ */
 export interface ElicitationResult {
   action: 'accept' | 'decline' | 'cancel'
-  content?: Record<string, unknown>
+  content?: Record<string, string | number | boolean | string[]>
 }
 
 export type ElicitationDouble = (

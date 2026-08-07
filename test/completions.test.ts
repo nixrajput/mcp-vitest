@@ -24,4 +24,14 @@ describe.each([
     )
     expect(completion.values).toEqual([])
   })
+
+  // CompletionRef is a two-member union; without this only ref/prompt was proven.
+  test('completes a resource-template variable', async () => {
+    const mcp = await make()
+    const { completion } = await mcp.complete(
+      { type: 'ref/resource', uri: 'demo://person/{name}' },
+      { name: 'name', value: 'A' },
+    )
+    expect(completion.values.sort()).toEqual(['Ada', 'Alan'])
+  })
 })

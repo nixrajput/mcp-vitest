@@ -21,10 +21,12 @@ export async function connectV1(
 
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
   // Capabilities are advertised unconditionally: a server decides what to request
-  // during initialize, long before a test body can register its doubles.
+  // during initialize, long before a test body can register its doubles. No
+  // roots.listChanged - the harness never sends that notification, so claiming it
+  // would invite a server to wait for one that never comes.
   const client = new Client(
-    { name: 'mcp-vitest', version: '0.1.0' },
-    { capabilities: { sampling: {}, elicitation: {}, roots: { listChanged: true } } },
+    { name: 'mcp-vitest', version: '0.3.0' },
+    { capabilities: { sampling: {}, elicitation: {}, roots: {} } },
   )
 
   const { CreateMessageRequestSchema, ElicitRequestSchema, ListRootsRequestSchema } = await import(

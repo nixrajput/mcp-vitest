@@ -44,6 +44,7 @@ Vitest-native testing for **Model Context Protocol** servers - in-process, over 
     - [Lifecycles](#lifecycles)
     - [Matchers](#matchers)
     - [`detectServerKind(server)`](#detectserverkindserver)
+  - [Migrating from 0.2](#migrating-from-02)
   - [Requirements](#requirements)
   - [Contributing](#contributing)
   - [Contributors](#contributors)
@@ -301,7 +302,9 @@ const result = await mcp.callTool("summarize", { text: "a very long text" });
 expect(result).toHaveTextContent("summary: short");
 ```
 
-Register doubles before or after connecting - the handlers read them at call time. Decline and cancel are ordinary results, so `{ action: 'decline' }` exercises the path where the user says no.
+Register a double any time before the call that triggers it - the handlers read the registry at call time, not at connect. Decline and cancel are ordinary results, so `{ action: 'decline' }` exercises the path where the user says no.
+
+One interaction to be aware of if you also collect progress: on v2, the SDK's input-required driver reports each fulfilment round through the progress channel, so a call that uses a double emits an extra progress event (`Fulfilling input required by 'tools/call' (round 1)`) that no server sent. It reaches both `onProgress` and any `notifications('notifications/progress')` collector. Assert on the events you care about rather than on a bare count.
 
 If a server asks for something you have not registered, mcp-vitest says so by name rather than hanging: `the server requested sampling but no double is registered. Call harness.onSampling(...) before triggering it.`
 
@@ -385,7 +388,7 @@ Two revisions are selectable, and that is a property of the SDK rather than a ch
 | v1     | the only revision it negotiates   | throws - the v1 SDK cannot serve it |
 | v2     | legacy mode; no doubles available | default; full support               |
 
-Two limits worth knowing. In `lifecycles` mode only plain `test(name, fn)` is forwarded, so `.skip`, `.only`, and `.each` are not available on the returned test. And a single revision is simpler set with `protocolVersion` on `mcpTest` than with a one-element matrix.
+Two limits worth knowing. In `lifecycles` mode the returned value registers plain tests only: it is typed as `LifecycleMcpTest`, so `.skip`, `.only`, `.each`, and `.extend` are compile errors rather than runtime surprises. And for a single revision, `protocolVersion` on `mcpTest` or `createMcpTest` is simpler than a one-element matrix.
 
 ### Matchers
 
@@ -412,6 +415,20 @@ registerMatchers();
 ### `detectServerKind(server)`
 
 Resolves `'v1'` or `'v2'` for an SDK server object, or rejects with a message naming what to pass instead. Exported for the rare case you need to branch on the SDK major yourself.
+
+## Migrating from 0.2
+
+Everything from 0.2 keeps working. Two changes alter what your server sees, so they are worth a look if a suite starts behaving differently.
+
+**v2 connections now negotiate 2026-07-28.** Through 0.2.1 the v2 lane negotiated `2025-11-25`, because the client's `versionNegotiation` defaults to `'legacy'` and nothing overrode it. The 2026 era is required for doubles to work at all - a 2025-era v2 connection has no channel for server-to-client requests. Progress collection was verified unaffected by the change. To get the old behavior:
+
+```ts
+const mcp = await mcpTest(() => createServer(), { protocolVersion: "2025-11-25" });
+```
+
+**The test client now advertises `sampling`, `elicitation`, and `roots`.** Capabilities are declared at connect, long before a test body can register a double, so they are advertised unconditionally. If your server branches on the client's declared capabilities, it will now take its sampling or elicitation path where 0.2.1 made it take the fallback - and without a registered double that call fails with `the server requested sampling but no double is registered`. Register the double, or assert the fallback path against a server you construct without those branches.
+
+One type-level note for the rare case it applies: `SdkClientLike` gained a required `complete()` member, so a hand-written implementation of `SdkClientLike` or `RawConnection` needs that method added. Nothing else in the public surface changed shape.
 
 ## Requirements
 

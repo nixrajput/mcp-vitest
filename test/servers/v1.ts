@@ -1,6 +1,8 @@
 import { completable } from '@modelcontextprotocol/sdk/server/completable.js'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
+
+const NAMES = ['Ada', 'Alan', 'Grace']
 
 const CONFIRM_SCHEMA = {
   type: 'object' as const,
@@ -117,14 +119,23 @@ export function createV1Server(): McpServer {
     async (uri) => ({ contents: [{ uri: uri.href, text: 'hello' }] }),
   )
 
+  // Exists so the ref/resource half of complete() is covered, not just ref/prompt.
+  server.registerResource(
+    'person',
+    new ResourceTemplate('demo://person/{name}', {
+      list: undefined,
+      complete: { name: (value) => NAMES.filter((n) => n.startsWith(value)) },
+    }),
+    { description: 'A templated person resource' },
+    async (uri) => ({ contents: [{ uri: uri.href, text: 'person' }] }),
+  )
+
   server.registerPrompt(
     'greet',
     {
       description: 'Greeting prompt',
       argsSchema: {
-        name: completable(z.string(), (value) =>
-          ['Ada', 'Alan', 'Grace'].filter((n) => n.startsWith(value)),
-        ),
+        name: completable(z.string(), (value) => NAMES.filter((n) => n.startsWith(value))),
       },
     },
     ({ name }) => ({

@@ -26,20 +26,22 @@ src/
   detect.ts      detectServerKind() - routes a server object to its SDK major
   connect/bus.ts shared notification bus + CallToolOptions -> SDK request options
   connect/v1.ts  InMemoryTransport linked pair (2025-era lifecycle)
-  connect/v2.ts  createMcpHandler + handler.fetch (2026-07-28 stateless lifecycle)
+  connect/v2.ts  createMcpHandler + handler.fetch, pinned to 2026-07-28
+  doubles.ts     DoubleRegistry + sampling/elicitation/roots double types
   harness.ts     McpHarness + mcpTest()
-  fixture.ts     createMcpTest() - vitest test.extend
+  fixture.ts     createMcpTest() - vitest test.extend, plus the lifecycle matrix
   matchers.ts    matchers + registerMatchers() + vitest module augmentation
   notifications.ts  NotificationCollector (items + waitFor)
   snapshot.ts    normalized manifests for vitest snapshots
   setup.ts       side-effect entry for setupFiles
 test/
   servers/v1.ts  v1 fixture server - tools echo/boom/slow/weather/weather-bad/
-                 weather-strict, resource demo://greeting, prompt greet
-  servers/v2.ts  v2 fixture server, identical surface
+                 weather-strict/ask/summarize/list-roots, resource
+                 demo://greeting, template demo://person/{name}, prompt greet
+  servers/v2.ts  v2 fixture server - same surface minus list-roots
 ```
 
-The two fixture servers share one contract on purpose: every harness and matcher test runs against both, so a change that only works on one SDK major fails loudly.
+The two fixture servers share one contract on purpose: every harness and matcher test runs against both, so a change that only works on one SDK major fails loudly. Two deliberate exceptions: `list-roots` is v1-only because roots is deprecated in the 2026 spec, and the interactive tools use different mechanisms per era - v1 pushes server-to-client requests, while v2 answers with `inputRequired()` and reads the reply from `ctx.mcpReq.inputResponses` on the client's retry.
 
 ### The checks
 

@@ -59,10 +59,12 @@ async function collectPages<Page extends { nextCursor?: string }, Item>(
 }
 
 export class McpHarness {
+  // registry is required, not defaulted: a default would hand a caller a
+  // registry the connection never reads, so every double would silently no-op.
   constructor(
     readonly kind: ServerKind,
     private readonly conn: RawConnection,
-    private readonly registry: DoubleRegistry = new DoubleRegistry(),
+    private readonly registry: DoubleRegistry,
   ) {}
 
   /** @internal fed by mcpTest()'s connection listener */
@@ -107,6 +109,15 @@ export class McpHarness {
 
   /** Serves the server's roots/list requests. v1 only: roots is deprecated in the 2026 spec. */
   onRoots(roots: Root[]): void {
+    // Refuse rather than accept a double the v2 connection never reads: it
+    // advertises no roots capability, so the server's request fails with an SDK
+    // capability error that never mentions the double the test registered.
+    if (this.kind === 'v2') {
+      throw new Error(
+        'mcp-vitest: roots doubles are v1-only in this version. Roots is deprecated in ' +
+          'the 2026-07-28 spec, so the v2 lane does not advertise the capability.',
+      )
+    }
     this.registry.roots = roots
   }
 

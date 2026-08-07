@@ -10,8 +10,11 @@ const test = createMcpTest(() => createV2Server(), {
 const seen: string[] = []
 
 describe('lifecycle matrix', () => {
-  test('echo works on every lifecycle', async ({ mcp }) => {
+  test('echo works on every lifecycle', async ({ mcp, task }) => {
     seen.push(mcp.lifecycle ?? 'unknown')
+    // The suffix is the only way a reporter distinguishes the variants, so assert
+    // it directly rather than inferring it from the count of harnesses that ran.
+    expect(task.name).toBe(`echo works on every lifecycle [${mcp.lifecycle}]`)
     const result = await mcp.callTool('echo', { message: 'x' })
     expect(result).toHaveTextContent('echo: x')
   })
@@ -46,5 +49,16 @@ describe('lifecycle guards', () => {
   vitestTest('an unpinned v1 harness reports no lifecycle', async () => {
     const mcp = await mcpTest(createV1Server())
     expect(mcp.lifecycle).toBeUndefined()
+  })
+
+  vitestTest('an empty lifecycles array is refused', () => {
+    expect(() => createMcpTest(() => createV2Server(), { lifecycles: [] })).toThrow(
+      /empty `lifecycles` array/,
+    )
+  })
+
+  vitestTest('createMcpTest honours a bare protocolVersion', async () => {
+    const mcp = await mcpTest(() => createV2Server(), { protocolVersion: '2025-11-25' })
+    expect(mcp.lifecycle).toBe('2025-11-25')
   })
 })

@@ -5,10 +5,11 @@ export type {
   ElicitationResult,
   Root,
   SamplingDouble,
+  SamplingMessage,
   SamplingRequest,
   SamplingResult,
 } from './doubles.js'
-export { createMcpTest } from './fixture.js'
+export { createMcpTest, type LifecycleMcpTest } from './fixture.js'
 export { McpHarness, mcpTest } from './harness.js'
 export { mcpMatchers, registerMatchers } from './matchers.js'
 export { type CollectedNotification, NotificationCollector } from './notifications.js'
