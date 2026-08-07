@@ -9,9 +9,12 @@ exports[`snapshot manifests (v1) > capabilitiesManifest lists names only 1`] = `
     "demo://greeting",
   ],
   "tools": [
+    "ask",
     "boom",
     "echo",
+    "list-roots",
     "slow",
+    "summarize",
     "weather",
     "weather-bad",
     "weather-strict",
@@ -19,7 +22,7 @@ exports[`snapshot manifests (v1) > capabilitiesManifest lists names only 1`] = `
 }
 `;
 
-exports[`snapshot manifests (v1) > toolManifest is stable and sorted 1`] = `"[{"description":"Always fails","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"boom"},{"description":"Echoes back the message","execution":{"taskSupport":"forbidden"},"inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"name":"echo"},{"description":"Sleeps with progress","execution":{"taskSupport":"forbidden"},"inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"ms":{"type":"number"}},"type":"object"},"name":"slow"},{"description":"Structured weather","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"weather","outputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","additionalProperties":false,"properties":{"temperature":{"type":"number"},"unit":{"type":"string"}},"required":["temperature","unit"],"type":"object"}},{"description":"Broken structured weather","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"weather-bad"},{"description":"Declares a schema its output violates","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"weather-strict","outputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","additionalProperties":false,"properties":{"temperature":{"type":"number"},"unit":{"type":"string"}},"required":["temperature","unit"],"type":"object"}}]"`;
+exports[`snapshot manifests (v1) > toolManifest is stable and sorted 1`] = `"[{"description":"Asks the user via elicitation","execution":{"taskSupport":"forbidden"},"inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"question":{"type":"string"}},"required":["question"],"type":"object"},"name":"ask"},{"description":"Always fails","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"boom"},{"description":"Echoes back the message","execution":{"taskSupport":"forbidden"},"inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"name":"echo"},{"description":"Lists the client's roots","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"list-roots"},{"description":"Sleeps with progress","execution":{"taskSupport":"forbidden"},"inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"ms":{"type":"number"}},"type":"object"},"name":"slow"},{"description":"Summarizes text via sampling","execution":{"taskSupport":"forbidden"},"inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","properties":{"text":{"type":"string"}},"required":["text"],"type":"object"},"name":"summarize"},{"description":"Structured weather","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"weather","outputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","additionalProperties":false,"properties":{"temperature":{"type":"number"},"unit":{"type":"string"}},"required":["temperature","unit"],"type":"object"}},{"description":"Broken structured weather","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"weather-bad"},{"description":"Declares a schema its output violates","execution":{"taskSupport":"forbidden"},"inputSchema":{"properties":{},"type":"object"},"name":"weather-strict","outputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","additionalProperties":false,"properties":{"temperature":{"type":"number"},"unit":{"type":"string"}},"required":["temperature","unit"],"type":"object"}}]"`;
 
 exports[`snapshot manifests (v2) > capabilitiesManifest lists names only 1`] = `
 {
@@ -30,9 +33,11 @@ exports[`snapshot manifests (v2) > capabilitiesManifest lists names only 1`] = `
     "demo://greeting",
   ],
   "tools": [
+    "ask",
     "boom",
     "echo",
     "slow",
+    "summarize",
     "weather",
     "weather-bad",
     "weather-strict",
@@ -40,4 +45,4 @@ exports[`snapshot manifests (v2) > capabilitiesManifest lists names only 1`] = `
 }
 `;
 
-exports[`snapshot manifests (v2) > toolManifest is stable and sorted 1`] = `"[{"description":"Always fails","inputSchema":{"properties":{},"type":"object"},"name":"boom"},{"description":"Echoes back the message","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"name":"echo"},{"description":"Sleeps with progress","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"ms":{"type":"number"}},"type":"object"},"name":"slow"},{"description":"Structured weather","inputSchema":{"properties":{},"type":"object"},"name":"weather","outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"temperature":{"type":"number"},"unit":{"type":"string"}},"required":["temperature","unit"],"type":"object"}},{"description":"Broken structured weather","inputSchema":{"properties":{},"type":"object"},"name":"weather-bad"},{"description":"Declares a schema its output violates","inputSchema":{"properties":{},"type":"object"},"name":"weather-strict","outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"temperature":{"type":"number"},"unit":{"type":"string"}},"required":["temperature","unit"],"type":"object"}}]"`;
+exports[`snapshot manifests (v2) > toolManifest is stable and sorted 1`] = `"[{"description":"Asks the user via elicitation","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"question":{"type":"string"}},"required":["question"],"type":"object"},"name":"ask"},{"description":"Always fails","inputSchema":{"properties":{},"type":"object"},"name":"boom"},{"description":"Echoes back the message","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"message":{"type":"string"}},"required":["message"],"type":"object"},"name":"echo"},{"description":"Sleeps with progress","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"ms":{"type":"number"}},"type":"object"},"name":"slow"},{"description":"Summarizes text via sampling","inputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","properties":{"text":{"type":"string"}},"required":["text"],"type":"object"},"name":"summarize"},{"description":"Structured weather","inputSchema":{"properties":{},"type":"object"},"name":"weather","outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"temperature":{"type":"number"},"unit":{"type":"string"}},"required":["temperature","unit"],"type":"object"}},{"description":"Broken structured weather","inputSchema":{"properties":{},"type":"object"},"name":"weather-bad"},{"description":"Declares a schema its output violates","inputSchema":{"properties":{},"type":"object"},"name":"weather-strict","outputSchema":{"$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"properties":{"temperature":{"type":"number"},"unit":{"type":"string"}},"required":["temperature","unit"],"type":"object"}}]"`;

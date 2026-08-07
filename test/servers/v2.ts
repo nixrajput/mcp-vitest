@@ -1,5 +1,11 @@
-import { McpServer } from '@modelcontextprotocol/server'
+import { completable, inputRequired, inputResponse, McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
+
+const CONFIRM_SCHEMA = {
+  type: 'object' as const,
+  properties: { confirm: { type: 'boolean' as const } },
+  required: ['confirm'],
+}
 
 export function createV2Server(): McpServer {
   const server = new McpServer({ name: 'fixture-v2', version: '1.0.0' })
@@ -71,6 +77,53 @@ export function createV2Server(): McpServer {
     }),
   )
 
+  // Server-initiated interaction, 2026 style. The push helpers on ctx.mcpReq are
+  // unusable here: they throw on a 2026 connection and hang on a legacy one, so
+  // these tools answer with inputRequired and read the reply on the client's retry.
+  server.registerTool(
+    'ask',
+    {
+      description: 'Asks the user via elicitation',
+      inputSchema: z.object({ question: z.string() }),
+    },
+    async ({ question }, ctx) => {
+      const reply = inputResponse(ctx.mcpReq.inputResponses, 'confirm')
+      if (reply.kind === 'missing') {
+        return inputRequired({
+          inputRequests: {
+            confirm: inputRequired.elicit({ message: question, requestedSchema: CONFIRM_SCHEMA }),
+          },
+        })
+      }
+      return reply.kind === 'elicit' && reply.action === 'accept'
+        ? { content: [{ type: 'text', text: `answer: ${JSON.stringify(reply.content)}` }] }
+        : { content: [{ type: 'text', text: 'declined' }] }
+    },
+  )
+
+  server.registerTool(
+    'summarize',
+    { description: 'Summarizes text via sampling', inputSchema: z.object({ text: z.string() }) },
+    async ({ text }, ctx) => {
+      const reply = inputResponse(ctx.mcpReq.inputResponses, 'summary')
+      if (reply.kind === 'missing') {
+        return inputRequired({
+          inputRequests: {
+            summary: inputRequired.createMessage({
+              messages: [{ role: 'user', content: { type: 'text', text } }],
+              maxTokens: 50,
+            }),
+          },
+        })
+      }
+      // Tool-augmented sampling returns an array of blocks, plain sampling one block.
+      const blocks = reply.kind === 'sampling' ? [reply.result.content].flat() : []
+      const block = blocks.find((b) => b.type === 'text')
+      const summary = block && 'text' in block ? block.text : ''
+      return { content: [{ type: 'text', text: `summary: ${summary}` }] }
+    },
+  )
+
   server.registerResource(
     'greeting',
     'demo://greeting',
@@ -82,7 +135,11 @@ export function createV2Server(): McpServer {
     'greet',
     {
       description: 'Greeting prompt',
-      argsSchema: z.object({ name: z.string() }),
+      argsSchema: z.object({
+        name: completable(z.string(), (value) =>
+          ['Ada', 'Alan', 'Grace'].filter((n) => n.startsWith(value)),
+        ),
+      }),
     },
     ({ name }) => ({
       messages: [{ role: 'user', content: { type: 'text', text: `Greet ${name}` } }],

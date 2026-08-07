@@ -8,9 +8,12 @@ describe('connectV1', () => {
     try {
       const { tools } = await client.listTools()
       expect(tools.map((t) => t.name).sort()).toEqual([
+        'ask',
         'boom',
         'echo',
+        'list-roots',
         'slow',
+        'summarize',
         'weather',
         'weather-bad',
         'weather-strict',
