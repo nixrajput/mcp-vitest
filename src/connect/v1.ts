@@ -1,4 +1,5 @@
-import type { RawConnection, SdkClientLike } from '../types.js'
+import type { McpToolResult, RawConnection, SdkClientLike } from '../types.js'
+import { createNotificationBus } from './bus.js'
 
 // v1 servers use the 2025-era stateful lifecycle; InMemoryTransport is the
 // SDK-blessed in-process path for it (see SDK docs/testing.md).
@@ -15,14 +16,29 @@ export async function connectV1(server: unknown): Promise<RawConnection> {
   }
   await Promise.all([connectable.connect(serverTransport), client.connect(clientTransport)])
 
+  const bus = createNotificationBus(client)
+
   let closed = false
   return {
     client: client as unknown as SdkClientLike,
+    onNotification: bus.onNotification,
+    // v1 signature: callTool(params, resultSchema?, options?)
+    callTool: async (params, opts) =>
+      (
+        client as unknown as {
+          callTool: (p: unknown, s: unknown, o: unknown) => Promise<McpToolResult>
+        }
+      ).callTool(params, undefined, bus.requestOptions(opts)),
     close: async () => {
       if (closed) return
-      closed = true
-      await client.close()
-      await connectable.close?.()
+      // The server must be closed even if the client transport is already gone,
+      // and `closed` flips only on success so a caller can retry teardown.
+      try {
+        await client.close()
+      } finally {
+        await connectable.close?.()
+        closed = true
+      }
     },
   }
 }

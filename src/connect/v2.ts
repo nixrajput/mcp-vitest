@@ -1,4 +1,5 @@
-import type { RawConnection, SdkClientLike } from '../types.js'
+import type { McpToolResult, RawConnection, SdkClientLike } from '../types.js'
+import { createNotificationBus } from './bus.js'
 
 // v2 in-process route per SDK docs/testing.md: createMcpHandler gives a
 // fetch-style handler, and the client transport's fetch is pointed at it.
@@ -17,14 +18,31 @@ export async function connectV2(
   const client = new Client({ name: 'mcp-vitest', version: '0.1.0' })
   await client.connect(transport)
 
+  // list_changed-style notifications need subscriptions/listen under the 2026
+  // lifecycle, which this harness does not open, so v2 collects progress only.
+  const bus = createNotificationBus(client)
+
   let closed = false
   return {
     client: client as unknown as SdkClientLike,
+    onNotification: bus.onNotification,
+    // v2 dropped the resultSchema parameter: callTool(params, options?)
+    callTool: async (params, opts) =>
+      (
+        client as unknown as {
+          callTool: (p: unknown, o: unknown) => Promise<McpToolResult>
+        }
+      ).callTool(params, bus.requestOptions(opts)),
     close: async () => {
       if (closed) return
-      closed = true
-      await client.close()
-      await handler.close()
+      // The handler must be closed even if the client transport is already gone,
+      // and `closed` flips only on success so a caller can retry teardown.
+      try {
+        await client.close()
+      } finally {
+        await handler.close()
+        closed = true
+      }
     },
   }
 }

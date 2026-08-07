@@ -1,6 +1,7 @@
+import { Validator } from '@cfworker/json-schema'
 import { expect } from 'vitest'
 import { McpHarness } from './harness.js'
-import type { McpToolResult } from './types.js'
+import { type McpToolResult, TOOL_META, type ToolCallMeta } from './types.js'
 
 function levenshtein(a: string, b: string): number {
   const dp = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
@@ -79,6 +80,75 @@ export const mcpMatchers = {
     }
   },
 
+  toHaveContent(
+    this: { equals?: (a: unknown, b: unknown) => boolean },
+    received: McpToolResult,
+    partial: Record<string, unknown>,
+  ) {
+    const entries = Object.entries(partial)
+    if (entries.length === 0) {
+      throw new TypeError('toHaveContent needs at least one field to match on')
+    }
+    // Structural, not reference, equality: every content type except text
+    // carries nested objects (resource, resource_link, annotations).
+    const eq = this?.equals ?? ((a: unknown, b: unknown) => a === b)
+    const parts = received.content ?? []
+    const pass = parts.some((p) =>
+      entries.every(([k, v]) => {
+        if (!(k in p)) return false
+        if (v instanceof RegExp) return typeof p[k] === 'string' && v.test(p[k] as string)
+        return eq(p[k], v)
+      }),
+    )
+    return {
+      pass,
+      message: () =>
+        `Expected content ${pass ? 'not ' : ''}to include a part matching ` +
+        `${JSON.stringify(partial)}. Content: ${JSON.stringify(parts)}`,
+    }
+  },
+
+  toMatchOutputSchema(received: McpToolResult, schema?: Record<string, unknown>) {
+    const meta = (received as unknown as Record<PropertyKey, unknown>)[TOOL_META] as
+      | ToolCallMeta
+      | undefined
+    const effective = schema ?? meta?.outputSchema
+    // These two are misconfiguration, not a failed assertion: returning
+    // pass: false would make `.not.toMatchOutputSchema()` pass without
+    // validating anything.
+    if (!effective) {
+      throw new TypeError(
+        'No output schema available: the tool declared none and no schema argument ' +
+          'was passed to toMatchOutputSchema(schema)',
+      )
+    }
+    if (received.structuredContent === undefined) {
+      throw new TypeError('Result has no structuredContent to validate')
+    }
+    // SDK v1 emits tool schemas as draft-07; honour whatever the schema declares.
+    const declared = (effective as { $schema?: string }).$schema ?? ''
+    // The validator has no draft-06 dialect; 07 is the nearest and matches it on
+    // the keywords that actually differ from 2020-12 (numeric exclusiveMinimum).
+    const draft = declared.includes('draft-04')
+      ? '4'
+      : declared.includes('draft-06') || declared.includes('draft-07')
+        ? '7'
+        : declared.includes('2019-09')
+          ? '2019-09'
+          : '2020-12'
+    const validator = new Validator(effective as never, draft)
+    const res = validator.validate(received.structuredContent)
+    return {
+      pass: res.valid,
+      message: () =>
+        res.valid
+          ? 'Expected structuredContent not to match the output schema'
+          : `structuredContent does not match output schema: ${res.errors
+              .map((e) => `${e.instanceLocation} ${e.error}`)
+              .join('; ')}`,
+    }
+  },
+
   toBeToolError(received: McpToolResult, match?: string | RegExp) {
     if (received.isError !== true) {
       return {
@@ -117,6 +187,8 @@ interface McpHarnessMatchers<R> {
 
 interface McpResultMatchers<R> {
   toHaveTextContent(expected: string | RegExp): R
+  toHaveContent(partial: Record<string, unknown>): R
+  toMatchOutputSchema(schema?: Record<string, unknown>): R
   toBeToolError(match?: string | RegExp): R
 }
 

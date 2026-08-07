@@ -1,6 +1,6 @@
 {
   "name": "mcp-vitest",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Vitest-native testing for Model Context Protocol (MCP) servers",
   "type": "module",
   "engines": {
@@ -20,13 +20,17 @@
     "./setup": {
       "types": "./dist/setup.d.ts",
       "default": "./dist/setup.js"
+    },
+    "./snapshot": {
+      "types": "./dist/snapshot.d.ts",
+      "default": "./dist/snapshot.js"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsdown src/index.ts src/matchers.ts src/setup.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
+    "build": "tsdown src/index.ts src/matchers.ts src/setup.ts src/snapshot.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
     "test": "vitest run",
     "ts:check": "tsc --noEmit",
     "lint": "biome check .",
@@ -73,8 +77,14 @@
   "keywords": [
     "mcp",
     "model-context-protocol",
+    "mcp-server",
     "vitest",
     "testing",
-    "mcp-server"
-  ]
+    "test-harness",
+    "matchers",
+    "typescript"
+  ],
+  "dependencies": {
+    "@cfworker/json-schema": "^4.1.1"
+  }
 }

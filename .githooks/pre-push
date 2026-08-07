@@ -17,6 +17,8 @@ fi
 echo "pre-push: running lint + typecheck + tests + build..."
 npm run lint || { echo "pre-push: biome check failed - fix it or run 'npm run format'." >&2; exit 1; }
 npm run ts:check || { echo "pre-push: type errors - fix them before pushing." >&2; exit 1; }
-npm test || { echo "pre-push: tests failed." >&2; exit 1; }
+# CI=true so vitest applies its CI strictness locally: obsolete snapshots and
+# stray .only fail here rather than surfacing only after a push.
+CI=true npm test || { echo "pre-push: tests failed." >&2; exit 1; }
 npm run build || { echo "pre-push: build failed (tsdown/publint/attw)." >&2; exit 1; }
 echo "pre-push: checks passed."

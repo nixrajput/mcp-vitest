@@ -34,3 +34,25 @@ jobs:
           done
       - name: Verify publish contents
         run: npm pack --dry-run
+
+  # package.json declares engines.node >=20, so the floor has to be exercised.
+  # Kept as its own job rather than a matrix on `build`: a matrix would rename
+  # the check to "build (24)" and break the required status check on main.
+  build-node-floor:
+    name: build (node 20 floor)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Lint, typecheck, test
+        run: |
+          for s in lint ts:check test; do
+            if jq -e --arg s "$s" '.scripts[$s]' package.json >/dev/null; then
+              npm run "$s"
+            fi
+          done

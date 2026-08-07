@@ -15,7 +15,7 @@ Last updated: 2026-08-06
 | Tests         | vitest, both SDK majors exercised side by side                           |
 | Lint / format | Biome - single quotes, no semicolons, 100 columns                        |
 | Peers         | vitest (required); both MCP SDK majors (optional)                        |
-| Runtime deps  | none, deliberately                                                       |
+| Runtime deps  | one: `@cfworker/json-schema` (MIT, no transitive deps), backs `toMatchOutputSchema` |
 
 ### Layout
 
@@ -24,14 +24,18 @@ src/
   index.ts       public barrel
   types.ts       RawConnection, SdkClientLike, McpToolResult, options
   detect.ts      detectServerKind() - routes a server object to its SDK major
+  connect/bus.ts shared notification bus + CallToolOptions -> SDK request options
   connect/v1.ts  InMemoryTransport linked pair (2025-era lifecycle)
   connect/v2.ts  createMcpHandler + handler.fetch (2026-07-28 stateless lifecycle)
   harness.ts     McpHarness + mcpTest()
   fixture.ts     createMcpTest() - vitest test.extend
   matchers.ts    matchers + registerMatchers() + vitest module augmentation
+  notifications.ts  NotificationCollector (items + waitFor)
+  snapshot.ts    normalized manifests for vitest snapshots
   setup.ts       side-effect entry for setupFiles
 test/
-  servers/v1.ts  v1 fixture server - tools echo/boom, resource demo://greeting, prompt greet
+  servers/v1.ts  v1 fixture server - tools echo/boom/slow/weather/weather-bad/
+                 weather-strict, resource demo://greeting, prompt greet
   servers/v2.ts  v2 fixture server, identical surface
 ```
 
@@ -39,7 +43,7 @@ The two fixture servers share one contract on purpose: every harness and matcher
 
 ### The checks
 
-`npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly these four, in that order. `.githooks/pre-push` runs them too (`git config core.hooksPath .githooks`).
+`npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly these four in the `build` job, and repeats lint/typecheck/test on the Node 20 floor in a second job (tsdown itself needs >=22.18, so the floor job skips `build`). `.githooks/pre-push` runs them too (`git config core.hooksPath .githooks`).
 
 ### Conventions
 
