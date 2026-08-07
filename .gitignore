@@ -7,3 +7,6 @@ coverage/
 
 # Claude Code machine-local settings
 .claude/settings.local.json
+
+# subagent-driven-development scratch
+.superpowers/
