@@ -6,7 +6,7 @@
  * regression is visible before the push rather than after the publish.
  */
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { gzipSync } from 'node:zlib'
@@ -130,7 +130,23 @@ function size() {
   return lines
 }
 
-const COLLECTORS = { size }
+function bench() {
+  const out = run('npx', ['vitest', 'bench', '--run'], {
+    MCP_VITEST_BENCH_TIME_MS: FAST ? '100' : '500',
+  })
+  const table = out
+    .split('\n')
+    .filter((l) => /·|name\s|hz|✓|×/.test(l) && !/^\s*$/.test(l))
+    .map((l) => `  ${l.trimEnd()}`)
+  return [
+    FAST
+      ? 'benchmarks (indicative: 100ms samples on your machine, expect 10-30% swing)'
+      : 'benchmarks (500ms samples)',
+    ...(table.length ? table : ['  no benchmark output captured']),
+  ]
+}
+
+const COLLECTORS = { size, bench }
 
 const selected = (ONLY ?? Object.keys(COLLECTORS)).filter((name) => {
   if (COLLECTORS[name]) return true
