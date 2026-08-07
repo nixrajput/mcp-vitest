@@ -1,4 +1,4 @@
-import { connectStdio } from './connect/external.js'
+import { connectStdio, connectUrl } from './connect/external.js'
 import { connectV1 } from './connect/v1.js'
 import { connectV2 } from './connect/v2.js'
 import { detectServerKind, type ServerKind } from './detect.js'
@@ -16,6 +16,7 @@ import {
   type CompletionRef,
   type CompletionResult,
   isStdioServerSpec,
+  isUrlServerSpec,
   type McpLifecycle,
   type McpServerInput,
   type McpTestOptions,
@@ -234,6 +235,9 @@ async function resolveInput(
   // SDK instance, so detectServerKind would only reject it.
   if (isStdioServerSpec(input)) {
     return { kind: 'external', conn: await connectStdio(input, registry) }
+  }
+  if (isUrlServerSpec(input)) {
+    return { kind: 'external', conn: await connectUrl(input, registry, lifecycle) }
   }
   if (typeof input === 'function') {
     const factory = input as () => unknown | Promise<unknown>

@@ -142,3 +142,47 @@ describe('stdio transport', () => {
     await expect(mcpTest({ command: 'definitely-not-a-real-binary-xyz' })).rejects.toThrow()
   })
 })
+
+describe('url transport', () => {
+  async function serveV2() {
+    const { createMcpHandler } = await import('@modelcontextprotocol/server')
+    const { createV2Server } = await import('./servers/v2.js')
+    return serveHandler(createMcpHandler(() => createV2Server()) as never)
+  }
+
+  test('tests a served v2 server over real HTTP', async () => {
+    const served = await serveV2()
+    try {
+      const mcp = await mcpTest({ url: `${served.url}/mcp` })
+      expect(mcp.kind).toBe('external')
+      await expect(mcp).toHaveTool('echo')
+      expect(await mcp.callTool('echo', { message: 'net' })).toHaveTextContent('echo: net')
+      await mcp.close()
+    } finally {
+      await served.close()
+    }
+  })
+
+  test('forwards custom headers to the server', async () => {
+    const seen: Array<string | null> = []
+    const served = await serveHandler({
+      fetch: async (req) => {
+        seen.push(req.headers.get('x-test-token'))
+        return new Response('{}', { status: 500, headers: { 'content-type': 'application/json' } })
+      },
+    })
+    try {
+      await mcpTest({
+        url: `${served.url}/mcp`,
+        headers: { 'x-test-token': 'abc123' },
+      }).catch(() => {})
+      expect(seen.some((v) => v === 'abc123')).toBe(true)
+    } finally {
+      await served.close()
+    }
+  })
+
+  test('an unreachable url fails rather than hanging', async () => {
+    await expect(mcpTest({ url: 'http://127.0.0.1:1/mcp' })).rejects.toThrow()
+  }, 15_000)
+})

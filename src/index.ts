@@ -35,4 +35,5 @@ export type {
   RawConnection,
   SdkClientLike,
   StdioServerSpec,
+  UrlServerSpec,
 } from './types.js'

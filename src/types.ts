@@ -100,7 +100,24 @@ export function isStdioServerSpec(input: unknown): input is StdioServerSpec {
   )
 }
 
-export type McpServerInput = StdioServerSpec | unknown | (() => unknown | Promise<unknown>)
+/** Connects to an already-running server over Streamable HTTP. */
+export interface UrlServerSpec {
+  url: string | URL
+  /** Merged into every request, e.g. an Authorization header. */
+  headers?: Record<string, string>
+}
+
+export function isUrlServerSpec(input: unknown): input is UrlServerSpec {
+  if (typeof input !== 'object' || input === null) return false
+  const url = (input as UrlServerSpec).url
+  return typeof url === 'string' || url instanceof URL
+}
+
+export type McpServerInput =
+  | StdioServerSpec
+  | UrlServerSpec
+  | unknown
+  | (() => unknown | Promise<unknown>)
 
 export interface McpTestOptions {
   /** Auto-close via vitest onTestFinished when inside a test. Default true. */

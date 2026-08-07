@@ -1,5 +1,12 @@
-import type { DoubleRegistry } from '../doubles.js'
-import type { McpToolResult, RawConnection, SdkClientLike, StdioServerSpec } from '../types.js'
+import type { DoubleRegistry, ElicitationRequest, SamplingRequest } from '../doubles.js'
+import type {
+  McpLifecycle,
+  McpToolResult,
+  RawConnection,
+  SdkClientLike,
+  StdioServerSpec,
+  UrlServerSpec,
+} from '../types.js'
 import { createNotificationBus } from './bus.js'
 
 /**
@@ -60,6 +67,67 @@ export async function connectStdio(
       if (closed) return
       // Closing the client closes the transport, which terminates the child.
       // `closed` flips only on success so a caller can retry teardown.
+      await client.close()
+      closed = true
+    },
+  }
+}
+
+/**
+ * Connects to an already-running server over Streamable HTTP. Unlike the
+ * in-process v2 lane this does NOT pin the 2026 revision: the server belongs to
+ * someone else and may implement any era, so negotiation probes by default and
+ * meets it where it is. Pass `protocolVersion` to hold it to one instead.
+ */
+export async function connectUrl(
+  spec: UrlServerSpec,
+  registry: DoubleRegistry,
+  lifecycle?: McpLifecycle,
+): Promise<RawConnection> {
+  const { Client, StreamableHTTPClientTransport } = await import('@modelcontextprotocol/client')
+
+  const transport = new StreamableHTTPClientTransport(new URL(spec.url), {
+    requestInit: spec.headers ? { headers: spec.headers } : undefined,
+  })
+  const client = new Client(
+    { name: 'mcp-vitest', version: '0.4.0' },
+    {
+      capabilities: { sampling: {}, elicitation: {} },
+      versionNegotiation: {
+        mode:
+          lifecycle === undefined
+            ? 'auto'
+            : lifecycle === '2026-07-28'
+              ? { pin: lifecycle }
+              : 'legacy',
+      },
+    },
+  )
+  client.setRequestHandler('sampling/createMessage', async (req) => {
+    const result = await registry.requireSampling()(req.params as unknown as SamplingRequest)
+    return result as unknown as never
+  })
+  client.setRequestHandler('elicitation/create', async (req) => {
+    const result = await registry.requireElicitation()(req.params as unknown as ElicitationRequest)
+    return result as unknown as never
+  })
+
+  const bus = createNotificationBus(client)
+  await client.connect(transport)
+
+  let closed = false
+  return {
+    client: client as unknown as SdkClientLike,
+    onNotification: bus.onNotification,
+    lifecycle,
+    callTool: async (params, opts) =>
+      (
+        client as unknown as {
+          callTool: (p: unknown, o: unknown) => Promise<McpToolResult>
+        }
+      ).callTool(params, bus.requestOptions(opts)),
+    close: async () => {
+      if (closed) return
       await client.close()
       closed = true
     },
