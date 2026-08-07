@@ -267,7 +267,9 @@ function health() {
   return [
     c.head('package health'),
     c.dim('  publint + attw: checked by npm run build'),
-    ...(knip.length ? knip : ['  knip: no output', ...tail(knipOut).map((l) => `  ${l}`)]),
+    // knip prints something whenever it has anything to say, so silence means
+    // a clean run. Saying "no output" read like a malfunction instead of a pass.
+    ...(knip.length ? knip : [c.good('  knip: no findings')]),
   ]
 }
 
