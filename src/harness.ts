@@ -1,6 +1,13 @@
 import { connectV1 } from './connect/v1.js'
 import { connectV2 } from './connect/v2.js'
 import { detectServerKind, type ServerKind } from './detect.js'
+import {
+  DoubleRegistry,
+  type ElicitationDouble,
+  type ElicitationResult,
+  type Root,
+  type SamplingDouble,
+} from './doubles.js'
 import { NotificationCollector } from './notifications.js'
 import {
   type CallToolOptions,
@@ -51,6 +58,7 @@ export class McpHarness {
   constructor(
     readonly kind: ServerKind,
     private readonly conn: RawConnection,
+    private readonly registry: DoubleRegistry = new DoubleRegistry(),
   ) {}
 
   /** @internal fed by mcpTest()'s connection listener */
@@ -58,6 +66,21 @@ export class McpHarness {
 
   get client(): SdkClientLike {
     return this.conn.client
+  }
+
+  /** Answers the server's sampling requests. */
+  onSampling(double: SamplingDouble): void {
+    this.registry.sampling = double
+  }
+
+  /** Answers the server's elicitation requests. A plain result becomes a constant double. */
+  onElicitation(double: ElicitationDouble | ElicitationResult): void {
+    this.registry.elicitation = typeof double === 'function' ? double : () => double
+  }
+
+  /** Serves the server's roots/list requests. v1 only: roots is deprecated in the 2026 spec. */
+  onRoots(roots: Root[]): void {
+    this.registry.roots = roots
   }
 
   notifications(method?: string): NotificationCollector {
@@ -160,6 +183,7 @@ export class McpHarness {
 
 async function resolveInput(
   input: McpServerInput,
+  registry: DoubleRegistry,
 ): Promise<{ kind: ServerKind; conn: RawConnection }> {
   if (typeof input === 'function') {
     const factory = input as () => unknown | Promise<unknown>
@@ -169,21 +193,22 @@ async function resolveInput(
       // v2 handlers create a fresh server per request; hand the factory over.
       return { kind, conn: await connectV2(factory) }
     }
-    return { kind, conn: await connectV1(probe) }
+    return { kind, conn: await connectV1(probe, registry) }
   }
   const kind = await detectServerKind(input)
   if (kind === 'v2') {
     return { kind, conn: await connectV2(() => input) }
   }
-  return { kind, conn: await connectV1(input) }
+  return { kind, conn: await connectV1(input, registry) }
 }
 
 export async function mcpTest(
   input: McpServerInput,
   options: McpTestOptions = {},
 ): Promise<McpHarness> {
-  const { kind, conn } = await resolveInput(input)
-  const harness = new McpHarness(kind, conn)
+  const registry = new DoubleRegistry()
+  const { kind, conn } = await resolveInput(input, registry)
+  const harness = new McpHarness(kind, conn, registry)
   conn.onNotification((n) => {
     for (const c of harness.collectors) c.push(n.method, n.params)
   })
