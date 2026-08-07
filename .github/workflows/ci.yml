@@ -57,7 +57,7 @@ jobs:
             fi
           done
 
-  # Advisory only: publishes the size/bench/health/coverage numbers to the PR
+  # Advisory only: publishes the size/bundle/bench/health/coverage numbers to the PR
   # summary. Never gates - do not add this to the required checks.
   report:
     name: report (advisory)
