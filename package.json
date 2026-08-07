@@ -35,6 +35,8 @@
     "ts:check": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
+    "report": "node scripts/report.mjs",
+    "report:fast": "node scripts/report.mjs --fast",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
