@@ -37,7 +37,11 @@ Vitest-native testing for **Model Context Protocol** servers - in-process, over 
     - [Notifications](#notifications)
     - [Snapshot testing](#snapshot-testing)
     - [Structured output](#structured-output)
+    - [Testing sampling and elicitation](#testing-sampling-and-elicitation)
+    - [Roots](#roots)
+    - [Completions](#completions)
     - [`createMcpTest(serverOrFactory, options?)`](#createmcptestserverorfactory-options)
+    - [Lifecycles](#lifecycles)
     - [Matchers](#matchers)
     - [`detectServerKind(server)`](#detectserverkindserver)
   - [Requirements](#requirements)
@@ -59,6 +63,8 @@ Testing an MCP server usually means spawning a subprocess, picking a port, or ha
 - **Typed matchers** - `toHaveTool`, `toHaveResource`, `toHavePrompt`, `toHaveTextContent`, `toHaveContent`, `toMatchOutputSchema`, `toBeToolError`, with TypeScript augmentation and did-you-mean suggestions on typos.
 - **Regression safety** - snapshot manifests of your tool, resource, and prompt surface, normalized so key order and absent optionals never churn them.
 - **Real call ergonomics** - progress callbacks, `AbortSignal` cancellation, per-call timeouts, and a notification collector with `waitFor`.
+- **Interaction doubles** - answer a server's sampling, elicitation, and roots requests from your test, over the 2025 push model and the 2026 multi-round-trip flow alike.
+- **Lifecycle coverage** - run the same tests against the 2025 and 2026-07-28 protocol revisions, one harness each.
 - **A `test` fixture** - `createMcpTest()` gives a fresh, auto-closed harness per test via vitest's `test.extend`.
 - **One runtime dependency** - `@cfworker/json-schema` (MIT, no transitive deps), used for output-schema validation. vitest and your MCP SDK stay peers, and the SDK peers are optional, so you install only the major you use.
 
@@ -131,10 +137,10 @@ test("search tool works", async ({ mcp }) => {
 
 ## Works with both SDK majors
 
-- **v1** (`@modelcontextprotocol/sdk`) servers connect over the SDK's `InMemoryTransport` linked pair - the 2025-era stateful lifecycle.
-- **v2** (`@modelcontextprotocol/server`) servers connect over the SDK's in-process `handler.fetch` route - the 2026-07-28 stateless lifecycle.
+- **v1** (`@modelcontextprotocol/sdk`) servers connect over the SDK's `InMemoryTransport` linked pair - the 2025-era stateful lifecycle, the only one that SDK negotiates.
+- **v2** (`@modelcontextprotocol/server`) servers connect over the SDK's in-process `handler.fetch` route, held to the 2026-07-28 stateless lifecycle by default and able to run the 2025 era too - see [lifecycles](#lifecycles).
 
-You do not pick. `mcpTest()` detects which SDK your server instance comes from and routes to the matching transport; `mcp.kind` reports what it found (`'v1'` or `'v2'`). The same tests, matchers, and fixture work either way.
+You do not pick the transport. `mcpTest()` detects which SDK your server instance comes from and routes to the matching one; `mcp.kind` reports what it found (`'v1'` or `'v2'`). The same tests, matchers, and fixture work either way.
 
 ## API
 
@@ -148,26 +154,32 @@ import { mcpTest } from "mcp-vitest";
 const mcp = await mcpTest(() => createServer());
 ```
 
-| Option      | Default | Meaning                                                             |
-| ----------- | ------- | ------------------------------------------------------------------- |
-| `autoClose` | `true`  | Close the harness via vitest's `onTestFinished` when inside a test. |
+| Option            | Default             | Meaning                                                                       |
+| ----------------- | ------------------- | ----------------------------------------------------------------------------- |
+| `autoClose`       | `true`              | Close the harness via vitest's `onTestFinished` when inside a test.           |
+| `protocolVersion` | `'2026-07-28'` (v2) | Hold the connection to one protocol revision - see [lifecycles](#lifecycles). |
 
 With `autoClose: false` you own the lifetime and call `mcp.close()` yourself. Outside a vitest test context, auto-close is skipped and closing is always yours.
 
 ### `McpHarness`
 
-| Member                         | Returns                                             |
-| ------------------------------ | --------------------------------------------------- |
-| `kind`                         | `'v1'` or `'v2'`                                    |
-| `client`                       | the underlying SDK client (escape hatch)            |
-| `listTools()`                  | every tool, following pagination                    |
-| `callTool(name, args?, opts?)` | the tool result - see [call options](#call-options) |
-| `listResources()`              | every resource, following pagination                |
-| `readResource(uri)`            | `{ contents }`                                      |
-| `listPrompts()`                | every prompt, following pagination                  |
-| `getPrompt(name, args?)`       | `{ messages }`                                      |
-| `notifications(method?)`       | a [notification collector](#notifications)          |
-| `close()`                      | disconnects; idempotent                             |
+| Member                         | Returns                                                  |
+| ------------------------------ | -------------------------------------------------------- |
+| `kind`                         | `'v1'` or `'v2'`                                         |
+| `lifecycle`                    | the protocol revision this connection is held to, if any |
+| `client`                       | the underlying SDK client (escape hatch)                 |
+| `listTools()`                  | every tool, following pagination                         |
+| `callTool(name, args?, opts?)` | the tool result - see [call options](#call-options)      |
+| `listResources()`              | every resource, following pagination                     |
+| `readResource(uri)`            | `{ contents }`                                           |
+| `listPrompts()`                | every prompt, following pagination                       |
+| `getPrompt(name, args?)`       | `{ messages }`                                           |
+| `complete(ref, argument)`      | `{ completion }` - see [completions](#completions)       |
+| `onSampling(double)`           | answers the server's sampling requests                   |
+| `onElicitation(double)`        | answers the server's elicitation requests                |
+| `onRoots(roots)`               | serves `roots/list` (v1 only)                            |
+| `notifications(method?)`       | a [notification collector](#notifications)               |
+| `close()`                      | disconnects; idempotent                                  |
 
 Anything the harness does not wrap is one hop away on `mcp.client`.
 
@@ -265,6 +277,75 @@ expect(result).toMatchOutputSchema({
 
 Note that both SDK majors validate declared output schemas server-side: if a tool's output violates its own schema, the call comes back as a tool error (`toBeToolError()`) rather than delivering invalid `structuredContent`. The explicit-schema form is what you want for asserting a contract the tool does not declare.
 
+### Testing sampling and elicitation
+
+When a tool asks the client for something - an LLM completion, a confirmation from the user - your test supplies the answer. Register a double and the harness answers on the client's behalf; the tool never knows the difference.
+
+```ts
+const mcp = await mcpTest(() => createServer());
+
+// a function double sees the request
+mcp.onSampling((req) => {
+  expect(req.maxTokens).toBe(50);
+  return {
+    model: "double",
+    role: "assistant",
+    content: { type: "text", text: "short" },
+  };
+});
+
+// or pass a constant result for elicitation
+mcp.onElicitation({ action: "accept", content: { confirm: true } });
+
+const result = await mcp.callTool("summarize", { text: "a very long text" });
+expect(result).toHaveTextContent("summary: short");
+```
+
+Register doubles before or after connecting - the handlers read them at call time. Decline and cancel are ordinary results, so `{ action: 'decline' }` exercises the path where the user says no.
+
+If a server asks for something you have not registered, mcp-vitest says so by name rather than hanging: `the server requested sampling but no double is registered. Call harness.onSampling(...) before triggering it.`
+
+The mechanism differs by SDK major, and the difference is visible in one place. v1 uses the 2025 push model, so a missing double surfaces as a tool error. v2 uses the 2026 multi-round-trip flow, where the client answers locally and retries, so a missing double rejects the call directly:
+
+```ts
+// v1
+expect(await mcp.callTool("summarize", { text: "x" })).toBeToolError(
+  /no double is registered/,
+);
+// v2
+await expect(mcp.callTool("summarize", { text: "x" })).rejects.toThrow(
+  /no double is registered/,
+);
+```
+
+> **On v2, doubles require the 2026-07-28 lifecycle**, which is the default. A v2 connection held to a 2025 revision has no channel for server-to-client requests at all, so `onSampling`/`onElicitation` throw immediately there instead of letting the call stall.
+>
+> **Sampling is deprecated** as of the 2026-07-28 revision (SEP-2577), along with roots. Both keep working for at least a twelve-month window; elicitation is not deprecated.
+
+### Roots
+
+`onRoots` serves the server's `roots/list` requests. **v1 only** - roots is deprecated in the 2026-07-28 revision, so it is not wired for v2.
+
+```ts
+mcp.onRoots([{ uri: "file:///workspace" }]);
+const result = await mcp.callTool("list-roots");
+expect(result).toHaveTextContent("roots: file:///workspace");
+```
+
+### Completions
+
+`complete()` asks the server to complete a prompt argument or a resource-template variable, the same call an editor's autocomplete would make.
+
+```ts
+const { completion } = await mcp.complete(
+  { type: "ref/prompt", name: "greet" },
+  { name: "name", value: "A" },
+);
+expect(completion.values).toEqual(["Ada", "Alan"]);
+```
+
+Pass `{ type: 'ref/resource', uri }` to complete a resource template instead.
+
 ### `createMcpTest(serverOrFactory, options?)`
 
 Returns a vitest `test` with an `mcp` fixture: a fresh harness per test, closed after each one. Same arguments as `mcpTest`.
@@ -279,6 +360,32 @@ test("lists prompts", async ({ mcp }) => {
   await expect(mcp).toHavePrompt("greet");
 });
 ```
+
+### Lifecycles
+
+MCP revised its lifecycle in 2026-07-28: the 2025 revisions are stateful and let a server push requests to a client, while 2026-07-28 is stateless and carries those requests in-band instead. A server that claims to serve both should be tested on both, so `createMcpTest` can run every test once per revision.
+
+```ts
+const test = createMcpTest(() => createServer(), {
+  lifecycles: ["2025-11-25", "2026-07-28"],
+});
+
+test("echo works on every lifecycle", async ({ mcp }) => {
+  const result = await mcp.callTool("echo", { message: "x" });
+  expect(result).toHaveTextContent("echo: x");
+});
+```
+
+That registers `echo works on every lifecycle [2025-11-25]` and `echo works on every lifecycle [2026-07-28]`, each with its own harness. `mcp.lifecycle` tells a test which revision it is running on.
+
+Two revisions are selectable, and that is a property of the SDK rather than a choice: pinning accepts modern revisions only, and the 2025 era is reachable only as "legacy", which lands on the newest 2025 revision. Earlier revisions such as `2025-06-18` cannot be pinned.
+
+| Server | `'2025-11-25'`                    | `'2026-07-28'`                      |
+| ------ | --------------------------------- | ----------------------------------- |
+| v1     | the only revision it negotiates   | throws - the v1 SDK cannot serve it |
+| v2     | legacy mode; no doubles available | default; full support               |
+
+Two limits worth knowing. In `lifecycles` mode only plain `test(name, fn)` is forwarded, so `.skip`, `.only`, and `.each` are not available on the returned test. And a single revision is simpler set with `protocolVersion` on `mcpTest` than with a one-element matrix.
 
 ### Matchers
 
