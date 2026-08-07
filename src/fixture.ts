@@ -26,17 +26,22 @@ function makeTest(
 
 type McpTestOptionsNoAutoClose = Omit<McpTestOptions, 'autoClose'>
 
+type LifecycleTestFn = (ctx: TestContext & { mcp: McpHarness }) => unknown
+
 /**
- * The matrix form registers plain tests only. Typing it as a bare call signature
- * rather than as the full vitest test object is deliberate: `.skip`, `.only`,
- * `.each`, and `.extend` do not exist on it, so reaching for one is a compile
- * error instead of a `TypeError` at collection time.
+ * The matrix form registers plain tests only. Typing it as call signatures rather
+ * than as the full vitest test object is deliberate: `.skip`, `.only`, `.each`,
+ * and `.extend` do not exist on it, so reaching for one is a compile error
+ * instead of a `TypeError` at collection time.
+ *
+ * The pair mirrors vitest's own overloads exactly. Collapsing them into one
+ * signature with `number | TestOptions` in third position would type-approve
+ * `test(name, fn, { timeout })`, which vitest 4 removed and throws on.
  */
-export type LifecycleMcpTest = (
-  name: string,
-  fn: (ctx: TestContext & { mcp: McpHarness }) => void | Promise<void>,
-  timeoutOrOptions?: number | TestOptions,
-) => void
+export interface LifecycleMcpTest {
+  (name: string, fn: LifecycleTestFn, timeout?: number): void
+  (name: string, options: TestOptions, fn: LifecycleTestFn): void
+}
 
 export function createMcpTest(
   server: McpServerInput,

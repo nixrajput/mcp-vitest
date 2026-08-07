@@ -327,7 +327,7 @@ await expect(mcp.callTool("summarize", { text: "x" })).rejects.toThrow(
 
 ### Roots
 
-`onRoots` serves the server's `roots/list` requests. **v1 only** - roots is deprecated in the 2026-07-28 revision, so it is not wired for v2.
+`onRoots` serves the server's `roots/list` requests. **v1 only** - roots is deprecated in the 2026-07-28 revision, so the v2 lane does not advertise the capability and `onRoots` throws there rather than accepting a double that would never fire.
 
 ```ts
 mcp.onRoots([{ uri: "file:///workspace" }]);
