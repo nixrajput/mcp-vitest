@@ -11,6 +11,9 @@ import {
 import { NotificationCollector } from './notifications.js'
 import {
   type CallToolOptions,
+  type CompletionArgument,
+  type CompletionRef,
+  type CompletionResult,
   type McpLifecycle,
   type McpServerInput,
   type McpTestOptions,
@@ -177,6 +180,10 @@ export class McpHarness {
 
   async getPrompt(name: string, args?: Record<string, string>) {
     return this.conn.client.getPrompt({ name, arguments: args })
+  }
+
+  async complete(ref: CompletionRef, argument: CompletionArgument): Promise<CompletionResult> {
+    return this.conn.client.complete({ ref, argument })
   }
 
   async close(): Promise<void> {

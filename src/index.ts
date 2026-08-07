@@ -20,6 +20,10 @@ export {
 } from './snapshot.js'
 export type {
   CallToolOptions,
+  CompletionArgument,
+  CompletionRef,
+  CompletionResult,
+  McpLifecycle,
   McpServerInput,
   McpTestOptions,
   McpToolResult,

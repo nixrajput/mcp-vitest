@@ -41,7 +41,21 @@ export interface SdkClientLike {
     prompts: Array<{ name: string }>
     nextCursor?: string
   }>
+  complete(params: { ref: CompletionRef; argument: CompletionArgument }): Promise<CompletionResult>
   close(): Promise<void>
+}
+
+export type CompletionRef =
+  | { type: 'ref/prompt'; name: string }
+  | { type: 'ref/resource'; uri: string }
+
+export interface CompletionArgument {
+  name: string
+  value: string
+}
+
+export interface CompletionResult {
+  completion: { values: string[]; total?: number; hasMore?: boolean }
 }
 
 export interface CallToolOptions {
