@@ -89,4 +89,9 @@ export type McpServerInput = unknown | (() => unknown | Promise<unknown>)
 export interface McpTestOptions {
   /** Auto-close via vitest onTestFinished when inside a test. Default true. */
   autoClose?: boolean
+  /**
+   * Holds the connection to one protocol revision. v2 pins it; v1 can only be
+   * held to '2025-11-25', the single revision its SDK negotiates.
+   */
+  protocolVersion?: McpLifecycle
 }
