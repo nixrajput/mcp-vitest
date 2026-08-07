@@ -44,10 +44,10 @@
       "Read(./**/*.key)",
       "Read(./**/*.pem)",
       "Read(./**/*.crt)",
-      "Write(/secrets/**)",
-      "Write(./**/*.key)",
-      "Write(./**/*.pem)",
-      "Write(./**/*.crt)"
+      "Edit(/secrets/**)",
+      "Edit(./**/*.key)",
+      "Edit(./**/*.pem)",
+      "Edit(./**/*.crt)"
     ],
     "ask": [
       "Bash(rm *)",
@@ -93,5 +93,5 @@
   },
   "enableAllProjectMcpServers": true,
   "outputStyle": "Explanatory",
-  "alwaysThinkingEnabled": false
+  "alwaysThinkingEnabled": true
 }

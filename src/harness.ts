@@ -1,9 +1,20 @@
 import { connectV1 } from './connect/v1.js'
 import { connectV2 } from './connect/v2.js'
 import { detectServerKind, type ServerKind } from './detect.js'
+import {
+  DoubleRegistry,
+  type ElicitationDouble,
+  type ElicitationResult,
+  type Root,
+  type SamplingDouble,
+} from './doubles.js'
 import { NotificationCollector } from './notifications.js'
 import {
   type CallToolOptions,
+  type CompletionArgument,
+  type CompletionRef,
+  type CompletionResult,
+  type McpLifecycle,
   type McpServerInput,
   type McpTestOptions,
   type McpToolResult,
@@ -48,9 +59,12 @@ async function collectPages<Page extends { nextCursor?: string }, Item>(
 }
 
 export class McpHarness {
+  // registry is required, not defaulted: a default would hand a caller a
+  // registry the connection never reads, so every double would silently no-op.
   constructor(
     readonly kind: ServerKind,
     private readonly conn: RawConnection,
+    private readonly registry: DoubleRegistry,
   ) {}
 
   /** @internal fed by mcpTest()'s connection listener */
@@ -58,6 +72,53 @@ export class McpHarness {
 
   get client(): SdkClientLike {
     return this.conn.client
+  }
+
+  /** The revision this connection was pinned to; undefined when auto-negotiated. */
+  get lifecycle(): McpLifecycle | undefined {
+    return this.conn.lifecycle
+  }
+
+  /**
+   * A v2 server can only ask for input through the 2026 multi-round-trip flow.
+   * Held to a 2025 revision it has no channel to ask on at all, and a sampling
+   * attempt there hangs until the request timeout instead of failing, so refuse
+   * the registration up front rather than let a test stall for a minute.
+   */
+  private assertCanServeDoubles(method: string): void {
+    if (this.kind === 'v2' && this.lifecycle !== '2026-07-28') {
+      throw new Error(
+        `mcp-vitest: ${method}() needs the 2026-07-28 lifecycle on the v2 SDK; ` +
+          `this connection is held to ${this.lifecycle}. A 2025-era v2 connection ` +
+          `cannot receive server-to-client requests.`,
+      )
+    }
+  }
+
+  /** Answers the server's sampling requests. */
+  onSampling(double: SamplingDouble): void {
+    this.assertCanServeDoubles('onSampling')
+    this.registry.sampling = double
+  }
+
+  /** Answers the server's elicitation requests. A plain result becomes a constant double. */
+  onElicitation(double: ElicitationDouble | ElicitationResult): void {
+    this.assertCanServeDoubles('onElicitation')
+    this.registry.elicitation = typeof double === 'function' ? double : () => double
+  }
+
+  /** Serves the server's roots/list requests. v1 only: roots is deprecated in the 2026 spec. */
+  onRoots(roots: Root[]): void {
+    // Refuse rather than accept a double the v2 connection never reads: it
+    // advertises no roots capability, so the server's request fails with an SDK
+    // capability error that never mentions the double the test registered.
+    if (this.kind === 'v2') {
+      throw new Error(
+        'mcp-vitest: roots doubles are v1-only in this version. Roots is deprecated in ' +
+          'the 2026-07-28 spec, so the v2 lane does not advertise the capability.',
+      )
+    }
+    this.registry.roots = roots
   }
 
   notifications(method?: string): NotificationCollector {
@@ -150,6 +211,10 @@ export class McpHarness {
     return this.conn.client.getPrompt({ name, arguments: args })
   }
 
+  async complete(ref: CompletionRef, argument: CompletionArgument): Promise<CompletionResult> {
+    return this.conn.client.complete({ ref, argument })
+  }
+
   async close(): Promise<void> {
     // Drop pending waiters first: their timers would otherwise fire after the
     // test ends and vitest would blame whichever test runs next.
@@ -160,6 +225,8 @@ export class McpHarness {
 
 async function resolveInput(
   input: McpServerInput,
+  registry: DoubleRegistry,
+  lifecycle?: McpLifecycle,
 ): Promise<{ kind: ServerKind; conn: RawConnection }> {
   if (typeof input === 'function') {
     const factory = input as () => unknown | Promise<unknown>
@@ -167,23 +234,24 @@ async function resolveInput(
     const kind = await detectServerKind(probe)
     if (kind === 'v2') {
       // v2 handlers create a fresh server per request; hand the factory over.
-      return { kind, conn: await connectV2(factory) }
+      return { kind, conn: await connectV2(factory, registry, lifecycle) }
     }
-    return { kind, conn: await connectV1(probe) }
+    return { kind, conn: await connectV1(probe, registry, lifecycle) }
   }
   const kind = await detectServerKind(input)
   if (kind === 'v2') {
-    return { kind, conn: await connectV2(() => input) }
+    return { kind, conn: await connectV2(() => input, registry, lifecycle) }
   }
-  return { kind, conn: await connectV1(input) }
+  return { kind, conn: await connectV1(input, registry, lifecycle) }
 }
 
 export async function mcpTest(
   input: McpServerInput,
   options: McpTestOptions = {},
 ): Promise<McpHarness> {
-  const { kind, conn } = await resolveInput(input)
-  const harness = new McpHarness(kind, conn)
+  const registry = new DoubleRegistry()
+  const { kind, conn } = await resolveInput(input, registry, options.protocolVersion)
+  const harness = new McpHarness(kind, conn, registry)
   conn.onNotification((n) => {
     for (const c of harness.collectors) c.push(n.method, n.params)
   })

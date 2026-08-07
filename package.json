@@ -1,6 +1,6 @@
 {
   "name": "mcp-vitest",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Vitest-native testing for Model Context Protocol (MCP) servers",
   "type": "module",
   "engines": {

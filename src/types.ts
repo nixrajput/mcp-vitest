@@ -41,7 +41,21 @@ export interface SdkClientLike {
     prompts: Array<{ name: string }>
     nextCursor?: string
   }>
+  complete(params: { ref: CompletionRef; argument: CompletionArgument }): Promise<CompletionResult>
   close(): Promise<void>
+}
+
+export type CompletionRef =
+  | { type: 'ref/prompt'; name: string }
+  | { type: 'ref/resource'; uri: string }
+
+export interface CompletionArgument {
+  name: string
+  value: string
+}
+
+export interface CompletionResult {
+  completion: { values: string[]; total?: number; hasMore?: boolean }
 }
 
 export interface CallToolOptions {
@@ -49,6 +63,13 @@ export interface CallToolOptions {
   signal?: AbortSignal
   timeoutMs?: number
 }
+
+/**
+ * Protocol revisions a connection can be held to. Only these two are reachable:
+ * the client's pin mode accepts modern revisions only, and the 2025 era is
+ * selectable just as "legacy", which lands on the SDK's newest 2025 revision.
+ */
+export type McpLifecycle = '2025-11-25' | '2026-07-28'
 
 export interface RawConnection {
   client: SdkClientLike
@@ -58,6 +79,8 @@ export interface RawConnection {
     opts?: CallToolOptions,
   ): Promise<McpToolResult>
   onNotification(cb: (n: { method: string; params: unknown }) => void): void
+  /** The revision this connection was pinned to, when it was pinned at all. */
+  lifecycle?: McpLifecycle
   close(): Promise<void>
 }
 
@@ -66,4 +89,9 @@ export type McpServerInput = unknown | (() => unknown | Promise<unknown>)
 export interface McpTestOptions {
   /** Auto-close via vitest onTestFinished when inside a test. Default true. */
   autoClose?: boolean
+  /**
+   * Holds the connection to one protocol revision. v2 pins it; v1 can only be
+   * held to '2025-11-25', the single revision its SDK negotiates.
+   */
+  protocolVersion?: McpLifecycle
 }

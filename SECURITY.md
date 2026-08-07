@@ -6,20 +6,22 @@ Only the latest release on the `main` branch receives security fixes.
 
 | Version         | Supported |
 | --------------- | --------- |
-| 0.1.x (current) | Yes       |
+| 0.3.x (current) | Yes       |
+| 0.2.x           | No        |
+| 0.1.x           | No        |
 | 0.0.x (stub)    | No        |
 
 ## Reporting a vulnerability
 
 **Please do not open a public GitHub issue for security vulnerabilities.**
 
-### Option 1 — GitHub private advisory (preferred)
+### Option 1 - GitHub private advisory (preferred)
 
 Use GitHub's private vulnerability reporting:
 
 [https://github.com/nixrajput/mcp-vitest/security/advisories/new](https://github.com/nixrajput/mcp-vitest/security/advisories/new)
 
-### Option 2 — Email
+### Option 2 - Email
 
 Send a description of the vulnerability to **<nkr.nikhil.nkr@gmail.com>**. Include:
 
