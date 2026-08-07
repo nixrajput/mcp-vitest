@@ -69,12 +69,13 @@ jobs:
         with:
           node-version: 24
       - name: Install
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
       - name: Full report
         run: |
           {
             echo '## mcp-vitest report'
             echo '```'
-            npm run report --silent || true
+            npm run report --silent 2>&1 || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
