@@ -4,7 +4,7 @@ type Notification = { method: string; params: unknown }
 type ProgressPayload = { progress: number; total?: number; message?: string }
 
 /** SDK request options both majors accept; only callTool's arity differs. */
-export interface SdkRequestOptions {
+interface SdkRequestOptions {
   onprogress?: (p: ProgressPayload) => void
   signal?: AbortSignal
   timeout?: number

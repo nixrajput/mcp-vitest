@@ -1,6 +1,6 @@
 {
   "name": "mcp-vitest",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Vitest-native testing for Model Context Protocol (MCP) servers",
   "type": "module",
   "engines": {
@@ -32,9 +32,12 @@
   "scripts": {
     "build": "tsdown src/index.ts src/matchers.ts src/setup.ts src/snapshot.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
     "test": "vitest run",
+    "bench": "vitest bench --run",
     "ts:check": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome format --write .",
+    "report": "node scripts/report.mjs",
+    "report:fast": "node scripts/report.mjs --fast",
     "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
@@ -60,6 +63,8 @@
     "@modelcontextprotocol/client": "^2.0.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@modelcontextprotocol/server": "^2.0.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "knip": "^6.32.0",
     "publint": "^0.3.23",
     "tsdown": "^0.22.14",
     "typescript": "^5.9.0",

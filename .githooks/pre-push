@@ -22,3 +22,14 @@ npm run ts:check || { echo "pre-push: type errors - fix them before pushing." >&
 CI=true npm test || { echo "pre-push: tests failed." >&2; exit 1; }
 npm run build || { echo "pre-push: build failed (tsdown/publint/attw)." >&2; exit 1; }
 echo "pre-push: checks passed."
+
+# Inform only: this must never fail a push. `@{push}` does not resolve on a
+# branch that has never been pushed, which is the common case for a new feature
+# branch, so origin/main..HEAD is the fallback that usually runs. If neither
+# resolves (no origin remote, or its default branch isn't main), changed stays
+# empty and this deliberately degrades to the cheap size,health report below.
+changed=$(git diff --name-only '@{push}..HEAD' 2>/dev/null || git diff --name-only origin/main..HEAD 2>/dev/null || echo '')
+case "$changed" in
+  *src/*|*test/*|*bench/*|*package.json*) node scripts/report.mjs --fast ;;
+  *) node scripts/report.mjs --fast --only=size,bundle,health ;;
+esac || true

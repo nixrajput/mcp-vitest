@@ -56,3 +56,28 @@ jobs:
               npm run "$s"
             fi
           done
+
+  # Advisory only: publishes the size/bench/health/coverage numbers to the PR
+  # summary. Never gates - do not add this to the required checks.
+  report:
+    name: report (advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install
+        run: |
+          if [ -f package-lock.json ]; then npm ci; else npm install; fi
+      - name: Full report
+        env:
+          NO_COLOR: '1'
+        run: |
+          {
+            echo '## mcp-vitest report'
+            echo '```'
+            npm run report --silent 2>&1 || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
