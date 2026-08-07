@@ -8,13 +8,13 @@ Last updated: 2026-08-06
 
 **mcp-vitest** is a Vitest-native testing harness for Model Context Protocol servers. It never reimplements the protocol: it drives a real SDK `Client` over a real transport, in-process.
 
-| Area          | Detail                                                                   |
-| ------------- | ------------------------------------------------------------------------ |
-| Language      | TypeScript strict, ESM only, Node `>=20`                                 |
-| Build         | tsdown (CLI flags, not a config file) + publint + attw                   |
-| Tests         | vitest, both SDK majors exercised side by side                           |
-| Lint / format | Biome - single quotes, no semicolons, 100 columns                        |
-| Peers         | vitest (required); both MCP SDK majors (optional)                        |
+| Area          | Detail                                                                              |
+| ------------- | ----------------------------------------------------------------------------------- |
+| Language      | TypeScript strict, ESM only, Node `>=20`                                            |
+| Build         | tsdown (CLI flags, not a config file) + publint + attw                              |
+| Tests         | vitest, both SDK majors exercised side by side                                      |
+| Lint / format | Biome - single quotes, no semicolons, 100 columns                                   |
+| Peers         | vitest (required); both MCP SDK majors (optional)                                   |
 | Runtime deps  | one: `@cfworker/json-schema` (MIT, no transitive deps), backs `toMatchOutputSchema` |
 
 ### Layout
@@ -44,6 +44,8 @@ The two fixture servers share one contract on purpose: every harness and matcher
 ### The checks
 
 `npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly these four in the `build` job, and repeats lint/typecheck/test on the Node 20 floor in a second job (tsdown itself needs >=22.18, so the floor job skips `build`). `.githooks/pre-push` runs them too (`git config core.hooksPath .githooks`).
+
+`.githooks/pre-push` also prints an inform-only report: per-file size deltas against the published version, npm/Bundlephobia bundle metrics (minified, gzipped, download times, dependency composition), benchmarks, knip, and coverage. It never blocks a push (`|| true`), skips bench and coverage when no `src/`, `test/`, `bench/`, or `package.json` file changed, and uses a short bench sample. `npm run report` runs the full-fidelity version, and CI attaches it to every PR summary. Size budgets are deliberately deferred until the feature surface stops moving; see the roadmap's carried items.
 
 ### Conventions
 
