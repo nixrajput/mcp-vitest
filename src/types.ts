@@ -50,6 +50,13 @@ export interface CallToolOptions {
   timeoutMs?: number
 }
 
+/**
+ * Protocol revisions a connection can be held to. Only these two are reachable:
+ * the client's pin mode accepts modern revisions only, and the 2025 era is
+ * selectable just as "legacy", which lands on the SDK's newest 2025 revision.
+ */
+export type McpLifecycle = '2025-11-25' | '2026-07-28'
+
 export interface RawConnection {
   client: SdkClientLike
   /** Per-major adapter: maps CallToolOptions onto that SDK's request options. */
@@ -58,6 +65,8 @@ export interface RawConnection {
     opts?: CallToolOptions,
   ): Promise<McpToolResult>
   onNotification(cb: (n: { method: string; params: unknown }) => void): void
+  /** The revision this connection was pinned to, when it was pinned at all. */
+  lifecycle?: McpLifecycle
   close(): Promise<void>
 }
 

@@ -11,6 +11,7 @@ import {
 import { NotificationCollector } from './notifications.js'
 import {
   type CallToolOptions,
+  type McpLifecycle,
   type McpServerInput,
   type McpTestOptions,
   type McpToolResult,
@@ -66,6 +67,11 @@ export class McpHarness {
 
   get client(): SdkClientLike {
     return this.conn.client
+  }
+
+  /** The revision this connection was pinned to; undefined when auto-negotiated. */
+  get lifecycle(): McpLifecycle | undefined {
+    return this.conn.lifecycle
   }
 
   /** Answers the server's sampling requests. */
@@ -191,13 +197,13 @@ async function resolveInput(
     const kind = await detectServerKind(probe)
     if (kind === 'v2') {
       // v2 handlers create a fresh server per request; hand the factory over.
-      return { kind, conn: await connectV2(factory) }
+      return { kind, conn: await connectV2(factory, registry) }
     }
     return { kind, conn: await connectV1(probe, registry) }
   }
   const kind = await detectServerKind(input)
   if (kind === 'v2') {
-    return { kind, conn: await connectV2(() => input) }
+    return { kind, conn: await connectV2(() => input, registry) }
   }
   return { kind, conn: await connectV1(input, registry) }
 }

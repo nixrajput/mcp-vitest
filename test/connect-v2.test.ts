@@ -1,10 +1,11 @@
 import { describe, expect, test } from 'vitest'
 import { connectV2 } from '../src/connect/v2.js'
+import { DoubleRegistry } from '../src/doubles.js'
 import { createV2Server } from './servers/v2.js'
 
 describe('connectV2', () => {
   test('round-trips listTools and callTool via handler.fetch', async () => {
-    const { client, close } = await connectV2(() => createV2Server())
+    const { client, close } = await connectV2(() => createV2Server(), new DoubleRegistry())
     try {
       const { tools } = await client.listTools()
       expect(tools.map((t) => t.name).sort()).toEqual([
@@ -29,7 +30,7 @@ describe('connectV2', () => {
   })
 
   test('supports async factories', async () => {
-    const { client, close } = await connectV2(async () => createV2Server())
+    const { client, close } = await connectV2(async () => createV2Server(), new DoubleRegistry())
     try {
       const { tools } = await client.listTools()
       expect(tools.length).toBeGreaterThan(0)
