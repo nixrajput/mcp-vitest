@@ -31,5 +31,5 @@ echo "pre-push: checks passed."
 changed=$(git diff --name-only '@{push}..HEAD' 2>/dev/null || git diff --name-only origin/main..HEAD 2>/dev/null || echo '')
 case "$changed" in
   *src/*|*test/*|*bench/*|*package.json*) node scripts/report.mjs --fast ;;
-  *) node scripts/report.mjs --fast --only=size,health ;;
+  *) node scripts/report.mjs --fast --only=size,bundle,health ;;
 esac || true

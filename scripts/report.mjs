@@ -167,7 +167,94 @@ function coverage() {
   return ['coverage', ...(summary.length ? summary : ['  no coverage summary captured'])]
 }
 
-const COLLECTORS = { size, bench, health, coverage }
+const SLOW_3G_BYTES_PER_SEC = 50 * 1024
+const FOUR_G_BYTES_PER_SEC = 875 * 1024
+
+/** npm's bundle size panel is Bundlephobia; read the same numbers it shows. */
+function fetchPublishedBundle(version) {
+  const out = run('curl', [
+    '-s',
+    '--max-time',
+    '20',
+    '-H',
+    'User-Agent: mcp-vitest-report',
+    `https://bundlephobia.com/api/size?package=${pkg.name}@${version}`,
+  ])
+  try {
+    const data = JSON.parse(out)
+    return typeof data.gzip === 'number' ? data : null
+  } catch {
+    return null
+  }
+}
+
+/** Minified size of our own code, dependencies external - not Bundlephobia comparable. */
+function localMinified() {
+  const dir = mkdtempSync(join(tmpdir(), 'mcp-vitest-min-'))
+  try {
+    run('npx', [
+      'tsdown',
+      'src/index.ts',
+      '--format',
+      'esm',
+      '--minify',
+      '--no-fixed-extension',
+      '--out-dir',
+      dir,
+    ])
+    const files = readdirSync(dir).filter((f) => f.endsWith('.js'))
+    if (!files.length) return null
+    let raw = 0
+    const chunks = []
+    for (const f of files) {
+      const buf = readFileSync(join(dir, f))
+      raw += buf.length
+      chunks.push(buf)
+    }
+    return { raw, gz: gzipSync(Buffer.concat(chunks)).length }
+  } catch {
+    return null
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+const ms = (bytes, rate) => `${Math.round((bytes / rate) * 1000)} ms`
+
+function bundle() {
+  const version = run('npm', ['view', pkg.name, 'version']).trim()
+  const published = version ? fetchPublishedBundle(version) : null
+  const lines = []
+
+  if (published) {
+    const deps = published.dependencySizes ?? []
+    const total = deps.reduce((sum, d) => sum + d.approximateSize, 0)
+    lines.push(
+      `bundle, published ${pkg.name}@${version} (Bundlephobia: bundled with dependencies)`,
+      `  ${'minified'.padEnd(24)} ${kB(published.size).padStart(10)}`,
+      `  ${'minified + gzipped'.padEnd(24)} ${kB(published.gzip).padStart(10)}`,
+      `  ${'download slow 3G'.padEnd(24)} ${ms(published.gzip, SLOW_3G_BYTES_PER_SEC).padStart(10)}`,
+      `  ${'download 4G'.padEnd(24)} ${ms(published.gzip, FOUR_G_BYTES_PER_SEC).padStart(10)}`,
+      `  dependencies: ${published.dependencyCount ?? deps.length}`,
+    )
+    for (const d of deps.sort((a, b) => b.approximateSize - a.approximateSize)) {
+      const pct = total ? ((d.approximateSize / total) * 100).toFixed(1) : '0.0'
+      lines.push(`    ${d.name.padEnd(30)} ${kB(d.approximateSize).padStart(10)}  ${pct}%`)
+    }
+  } else {
+    lines.push('bundle, published: unavailable (offline, rate limited, or unpublished version)')
+  }
+
+  const local = localMinified()
+  lines.push(
+    local
+      ? `  local src/index.ts minified ${kB(local.raw)}, gzipped ${kB(local.gz)} (dependencies external, not comparable to the figures above)`
+      : '  local minified: unavailable',
+  )
+  return lines
+}
+
+const COLLECTORS = { size, bundle, bench, health, coverage }
 
 const selected = (ONLY ?? Object.keys(COLLECTORS)).filter((name) => {
   if (COLLECTORS[name]) return true
