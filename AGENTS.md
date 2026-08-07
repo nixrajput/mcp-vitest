@@ -1,6 +1,6 @@
 # AI Agent Guidelines
 
-Last updated: 2026-08-06
+Last updated: 2026-08-07
 
 ---
 

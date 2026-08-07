@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Inform-only size / bench / health / coverage report.
+ * Inform-only size / bundle / bench / health / coverage report.
  *
  * Exits 0 no matter what it finds: CI is the enforcement, this exists so a
  * regression is visible before the push rather than after the publish.
@@ -18,7 +18,8 @@ function parseOnly() {
   const eq = argv.find((a) => a.startsWith('--only='))
   if (eq) return eq.slice('--only='.length)
   const i = argv.indexOf('--only')
-  return i >= 0 ? argv[i + 1] : undefined
+  if (i < 0) return undefined
+  return argv[i + 1] ?? '' // flag present with no value: explicit empty, not "run everything"
 }
 const ONLY = parseOnly()
   ?.split(',')
@@ -34,6 +35,8 @@ function run(cmd, args, env) {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, ...env },
+      timeout: 120_000,
+      killSignal: 'SIGKILL',
     })
   } catch (error) {
     return `${error.stdout ?? ''}${error.stderr ?? ''}`
@@ -43,7 +46,12 @@ function run(cmd, args, env) {
 /** Like run(), but returns null on a non-zero exit instead of the error text. */
 function runOk(cmd, args) {
   try {
-    return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    return execFileSync(cmd, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 120_000,
+      killSignal: 'SIGKILL',
+    })
   } catch {
     return null
   }
@@ -93,6 +101,15 @@ function progressDone() {
 
 const kB = (n) => `${(n / 1024).toFixed(2)} kB`
 
+/** Last n non-empty lines of captured output, so a regex miss still shows real diagnostics. */
+function tail(out, n = 10) {
+  return out
+    .trim()
+    .split('\n')
+    .filter((l) => l.trim())
+    .slice(-n)
+}
+
 function deltaOf(now, before) {
   if (before === undefined) return c.dim('new')
   const d = now - before
@@ -118,6 +135,17 @@ function measureDist(dir) {
     })
 }
 
+/** Recursively sums file sizes under dir, skipping the top-level dist/ subtree. */
+function sumOther(dir) {
+  let total = 0
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.name === 'dist') continue
+    const full = join(dir, entry.name)
+    total += entry.isDirectory() ? sumOther(full) : statSync(full).size
+  }
+  return total
+}
+
 /** Downloads the published tarball and measures its dist. null when offline. */
 function publishedBaseline() {
   const dir = mkdtempSync(join(tmpdir(), 'mcp-vitest-baseline-'))
@@ -129,7 +157,13 @@ function publishedBaseline() {
     if (!tgz) return null
     const tarball = statSync(join(dir, tgz)).size
     run('tar', ['xzf', join(dir, tgz), '-C', dir])
-    return { version, tarball, entries: measureDist(join(dir, 'package', 'dist')) }
+    const pkgDir = join(dir, 'package')
+    return {
+      version,
+      tarball,
+      entries: measureDist(join(pkgDir, 'dist')),
+      otherPacked: sumOther(pkgDir),
+    }
   } catch {
     return null
   } finally {
@@ -139,28 +173,50 @@ function publishedBaseline() {
 
 function size() {
   // In hook mode the gate built dist/ seconds ago; rebuilding wastes ~1.9s.
-  const buildOutput = FAST ? '' : run('npm', ['run', 'build'])
+  let buildOutput = ''
+  let buildFailed = false
+  if (!FAST) {
+    try {
+      buildOutput = execFileSync('npm', ['run', 'build'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+        timeout: 120_000,
+        killSignal: 'SIGKILL',
+      })
+    } catch (error) {
+      buildFailed = true
+      buildOutput = `${error.stdout ?? ''}${error.stderr ?? ''}`
+    }
+  }
   let local
   try {
     local = measureDist('dist')
   } catch (error) {
-    const tail = buildOutput.trim().split('\n').slice(-10).join('\n')
+    const lines = tail(buildOutput)
     return [
       'bundle size, gzipped: build failed, dist/ missing or unreadable',
-      tail || `(no build output captured: ${error.message})`,
+      ...(lines.length ? lines : [`(no build output captured: ${error.message})`]),
     ]
   }
   const packed = JSON.parse(run('npm', ['pack', '--dry-run', '--json']))[0]
+  const otherPacked = packed.files
+    .filter((f) => !f.path.startsWith('dist/'))
+    .reduce((sum, f) => sum + f.size, 0)
   const base = publishedBaseline()
   const before = new Map((base?.entries ?? []).map((e) => [e.name, e]))
 
-  const lines = [
+  const lines = []
+  if (buildFailed) {
+    lines.push(c.bad('bundle size, gzipped: build failed - numbers below are from a stale dist/'))
+    lines.push(...tail(buildOutput).map((l) => `  ${c.dim(l)}`))
+  }
+  lines.push(
     c.head(
       base
         ? `bundle size, gzipped, vs ${pkg.name}@${base.version} on npm`
         : 'bundle size, gzipped (no published baseline: offline or unpublished)',
     ),
-  ]
+  )
   for (const e of local) {
     lines.push(
       `  ${c.label(e.name.padEnd(28))} ${c.value(kB(e.gz).padStart(10))}  ${deltaOf(e.gz, before.get(e.name)?.gz)}`,
@@ -170,6 +226,9 @@ function size() {
   for (const gone of before.keys()) {
     lines.push(`  ${c.label(gone.padEnd(28))} ${c.dim('removed'.padStart(10))}`)
   }
+  lines.push(
+    `  ${c.label('other packaged files'.padEnd(28))} ${c.value(kB(otherPacked).padStart(10))}  ${deltaOf(otherPacked, base?.otherPacked)}`,
+  )
   lines.push(
     `  ${c.label('tarball download'.padEnd(28))} ${c.value(kB(packed.size).padStart(10))}  ${deltaOf(packed.size, base?.tarball)}`,
   )
@@ -193,19 +252,22 @@ function bench() {
         ? 'benchmarks (indicative: 100ms samples on your machine, expect 10-30% swing)'
         : 'benchmarks (500ms samples)',
     ),
-    ...(table.length ? table : ['  no benchmark output captured']),
+    ...(table.length
+      ? table
+      : ['  no benchmark output captured', ...tail(out).map((l) => `  ${l}`)]),
   ]
 }
 
 function health() {
-  const knip = run('npx', ['knip', '--no-progress'])
+  const knipOut = run('npx', ['knip', '--no-progress'])
+  const knip = knipOut
     .split('\n')
     .filter((l) => l.trim())
     .map((l) => `  ${l.trimEnd()}`)
   return [
     c.head('package health'),
-    c.dim('  publint + attw: enforced by npm run build (a failure would have stopped this push)'),
-    ...(knip.length ? knip : ['  knip: no output']),
+    c.dim('  publint + attw: checked by npm run build'),
+    ...(knip.length ? knip : ['  knip: no output', ...tail(knipOut).map((l) => `  ${l}`)]),
   ]
 }
 
@@ -215,7 +277,12 @@ function coverage() {
     .split('\n')
     .filter((l) => /Statements|Branches|Functions|Lines|Coverage report/.test(l))
     .map((l) => `  ${l.trim()}`)
-  return [c.head('coverage'), ...(summary.length ? summary : ['  no coverage summary captured'])]
+  return [
+    c.head('coverage'),
+    ...(summary.length
+      ? summary
+      : ['  no coverage summary captured', ...tail(out).map((l) => `  ${l}`)]),
+  ]
 }
 
 const SLOW_3G_BYTES_PER_SEC = 50 * 1024
@@ -226,9 +293,9 @@ function fetchPublishedBundle(version) {
   const out = run('curl', [
     '-s',
     '--max-time',
-    '20',
+    '10',
     '-H',
-    'User-Agent: mcp-vitest-report',
+    'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
     `https://bundlephobia.com/api/size?package=${pkg.name}@${version}`,
   ])
   try {
@@ -273,7 +340,7 @@ function localMinified() {
 const ms = (bytes, rate) => `${Math.round((bytes / rate) * 1000)} ms`
 
 function bundle() {
-  const version = run('npm', ['view', pkg.name, 'version', ...NPM_TIMEOUT]).trim()
+  const version = runOk('npm', ['view', pkg.name, 'version', ...NPM_TIMEOUT])?.trim()
   const published = version ? fetchPublishedBundle(version) : null
   const lines = []
 
@@ -312,6 +379,12 @@ function bundle() {
 }
 
 const COLLECTORS = { size, bundle, bench, health, coverage }
+
+if (ONLY?.length === 0) {
+  console.log(
+    `report: --only given no value, nothing to run (valid: ${Object.keys(COLLECTORS).join(', ')})`,
+  )
+}
 
 const selected = (ONLY ?? Object.keys(COLLECTORS)).filter((name) => {
   if (COLLECTORS[name]) return true
