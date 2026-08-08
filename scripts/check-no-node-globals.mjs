@@ -33,12 +33,15 @@ if (leaks.length > 0) {
   process.exit(1)
 }
 
-// A non-zero exit with nothing file-scoped left means tsc failed for a reason
-// this script cannot parse - a bad config path, a crash. Passing there would
-// report "clean" while nothing was actually checked.
-if (status !== 0 && fileErrors.length === 0) {
-  console.error(`tsc exited ${status} without any file-scoped error; the check did not run.\n`)
-  console.error(stdout || stderr || '(no output)')
+// Any error line that is not file-scoped - a bad config path, a crash, a bad
+// `types` entry - means tsc did not check what this script assumes it did.
+// Without this, such a diagnostic alongside the expected serve.ts errors would
+// still report "clean", because the leak filter would find nothing to report.
+const unparsed = lines.filter((l) => /error TS\d+/.test(l) && !FILE_ERROR.test(l))
+if (unparsed.length > 0 || (status !== 0 && fileErrors.length === 0)) {
+  console.error(`tsc exited ${status} with diagnostics this check cannot attribute:\n`)
+  for (const l of unparsed) console.error(`  ${l}`)
+  if (unparsed.length === 0) console.error(stdout || stderr || '(no output)')
   process.exit(1)
 }
 

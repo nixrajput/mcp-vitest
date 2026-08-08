@@ -92,9 +92,8 @@ export class McpHarness {
     if (this.conn.supports.serverInitiatedRequests) return
     throw new Error(
       `mcp-vitest: ${method}() needs a connection that can carry server-initiated ` +
-        `requests. This one is held to ${this.lifecycle ?? 'an auto-negotiated revision'}, ` +
-        `and a 2025-era HTTP connection cannot receive them. Hold it to '2026-07-28', ` +
-        `or use the in-process v1 lane or a spawned stdio server.`,
+        `requests, and this one is held to ${this.lifecycle}. Hold it to '2026-07-28' ` +
+        `instead, or use the in-process v1 lane or a spawned stdio server.`,
     )
   }
 

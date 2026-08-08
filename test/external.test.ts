@@ -177,7 +177,7 @@ describe('stdio transport', () => {
     })
     const result = await mcp.callTool('spawn-info')
     expect(result).toHaveTextContent(/probe: forwarded/)
-    expect(result).toHaveTextContent(new RegExp(`cwd: ${realpathSync(tmpdir())}`))
+    expect(result).toHaveTextContent(`cwd: ${realpathSync(tmpdir())}`)
   })
 
   test('an unspawnable command fails with a clear error', async () => {
@@ -276,15 +276,25 @@ describe('external lane guards', () => {
   // The gap the capability record closes: a url connection explicitly held to a
   // 2025 revision cannot receive server-initiated requests at all, so a double
   // registered there would be stored and never invoked.
-  test('doubles are refused on a legacy-held url connection', async () => {
+  // A url connection accepts doubles on any revision. Whether the remote can
+  // actually ask depends on the server, not the era - and when it cannot, it
+  // says so in milliseconds rather than stalling, so refusing here would only
+  // block the servers that do work.
+  test('doubles are accepted on a legacy-held url connection', async () => {
     const { createMcpHandler } = await import('@modelcontextprotocol/server')
     const { createV2Server } = await import('./servers/v2.js')
     const served = await serveHandler(createMcpHandler(() => createV2Server()))
     try {
       const mcp = await mcpTest({ url: `${served.url}/mcp` }, { protocolVersion: '2025-11-25' })
-      expect(() => mcp.onElicitation({ action: 'accept' })).toThrow(
-        /needs a connection that can carry server-initiated/,
-      )
+      expect(() =>
+        mcp.onElicitation({ action: 'accept', content: { confirm: true } }),
+      ).not.toThrow()
+      // This particular server is stateless and cannot ask, so it fails fast
+      // and names the reason instead of hanging.
+      const started = Date.now()
+      const result = await mcp.callTool('ask', { question: 'Proceed?' })
+      expect(result).toBeToolError(/did not declare the required capability/i)
+      expect(Date.now() - started).toBeLessThan(2000)
       await mcp.close()
     } finally {
       await served.close()

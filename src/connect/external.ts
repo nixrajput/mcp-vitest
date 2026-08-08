@@ -132,7 +132,13 @@ export async function connectUrl(
     lifecycle,
     // No roots: connectUrl advertises no roots capability and registers no
     // roots/list handler, so onRoots must be refused rather than stored.
-    supports: { roots: false, serverInitiatedRequests: lifecycle !== '2025-11-25' },
+    // Doubles are always accepted here. Whether a remote server can issue
+    // server-to-client requests depends on the server, not on the revision: a
+    // v1-backed HTTP server pushes fine on the 2025 era, while a stateless v2
+    // one cannot. Guessing from the era refuses working setups. And the guard
+    // exists to prevent a stall, which does not happen on this lane - a server
+    // that cannot ask fails in about 3 ms with a message naming the reason.
+    supports: { roots: false, serverInitiatedRequests: true },
     callTool: async (params, opts) =>
       (
         client as unknown as {

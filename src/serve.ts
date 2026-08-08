@@ -43,6 +43,13 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
     void (async () => {
       try {
         const response = await handler.fetch(toRequest(req, `http://${req.headers.host}`, Readable))
+        // The client can vanish while handler.fetch() is still running. The
+        // socket is then already gone, writeHead below would throw, and nobody
+        // would ever read the body - so release the producer here instead.
+        if (res.destroyed) {
+          await response.body?.cancel().catch(() => {})
+          return
+        }
         // set-cookie is the one header Headers does not pre-join: entries()
         // yields it once per value, so Object.fromEntries would keep only the
         // last. Every other name arrives already joined.
@@ -60,13 +67,22 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
           // iterating it already locked the stream.
           const reader = response.body.getReader()
           res.on('close', () => void reader.cancel().catch(() => {}))
+          let drained = false
           try {
             while (!res.destroyed) {
               const { done, value } = await reader.read()
-              if (done) break
+              if (done) {
+                drained = true
+                break
+              }
               res.write(value)
             }
           } finally {
+            // Cancel whenever the body was not read to completion - including the
+            // case where the client vanished while handler.fetch() was still
+            // running, so `close` fired before the loop and it never ran at all.
+            // Without this the producer is left running with nobody reading.
+            if (!drained) void reader.cancel().catch(() => {})
             reader.releaseLock()
           }
         }
