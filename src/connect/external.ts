@@ -132,7 +132,7 @@ export async function connectUrl(
     lifecycle,
     // No roots: connectUrl advertises no roots capability and registers no
     // roots/list handler, so onRoots must be refused rather than stored.
-    supports: { roots: false, serverInitiatedRequests: true },
+    supports: { roots: false, serverInitiatedRequests: lifecycle !== '2025-11-25' },
     callTool: async (params, opts) =>
       (
         client as unknown as {

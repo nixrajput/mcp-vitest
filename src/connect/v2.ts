@@ -52,6 +52,7 @@ export async function connectV2(
     client: client as unknown as SdkClientLike,
     onNotification: bus.onNotification,
     lifecycle,
+    supports: { roots: false, serverInitiatedRequests: lifecycle === '2026-07-28' },
     // v2 dropped the resultSchema parameter: callTool(params, options?)
     callTool: async (params, opts) =>
       (

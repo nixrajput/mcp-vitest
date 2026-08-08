@@ -32,6 +32,12 @@ server.registerTool(
   },
 )
 
+// v1 only, and present so a roots double can be proven over the pipe.
+server.registerTool('list-roots', { description: "Lists the client's roots" }, async () => {
+  const { roots } = await server.server.listRoots()
+  return { content: [{ type: 'text', text: `roots: ${roots.map((r) => r.uri).join(',')}` }] }
+})
+
 server.registerResource(
   'greeting',
   'demo://greeting',

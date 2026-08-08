@@ -53,13 +53,21 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
         if (cookies.length > 0) outHeaders['set-cookie'] = cookies
         res.writeHead(response.status, outHeaders)
         if (response.body) {
-          // Stop pulling if the socket dies: closeAllConnections() destroys it,
-          // and without this the loop keeps awaiting a stream nobody will read.
-          const body = response.body
-          res.on('close', () => void body.cancel().catch(() => {}))
-          for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
-            if (res.destroyed) break
-            res.write(chunk)
+          // Read through an explicit reader rather than `for await`. The socket can
+          // die mid-stream (closeAllConnections destroys it), and a stream that
+          // never yields again would leave the read pending forever. Cancelling
+          // the reader we hold settles it; cancelling the *body* cannot, because
+          // iterating it already locked the stream.
+          const reader = response.body.getReader()
+          res.on('close', () => void reader.cancel().catch(() => {}))
+          try {
+            while (!res.destroyed) {
+              const { done, value } = await reader.read()
+              if (done) break
+              res.write(value)
+            }
+          } finally {
+            reader.releaseLock()
           }
         }
         res.end()

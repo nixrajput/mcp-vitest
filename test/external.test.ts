@@ -227,9 +227,30 @@ describe('external lane guards', () => {
     }
   })
 
+  // Not just 'does not throw': the stdio fixture has a list-roots tool, so this
+  // asserts the registered handler actually answers across the pipe.
   test('roots doubles are served on the stdio lane', async () => {
     const mcp = await mcpTest({ command: 'node', args: [STDIO_SERVER] })
-    expect(() => mcp.onRoots([{ uri: 'file:///workspace' }])).not.toThrow()
+    mcp.onRoots([{ uri: 'file:///workspace' }])
+    expect(await mcp.callTool('list-roots')).toHaveTextContent('roots: file:///workspace')
+  })
+
+  // The gap the capability record closes: a url connection explicitly held to a
+  // 2025 revision cannot receive server-initiated requests at all, so a double
+  // registered there would be stored and never invoked.
+  test('doubles are refused on a legacy-held url connection', async () => {
+    const { createMcpHandler } = await import('@modelcontextprotocol/server')
+    const { createV2Server } = await import('./servers/v2.js')
+    const served = await serveHandler(createMcpHandler(() => createV2Server()))
+    try {
+      const mcp = await mcpTest({ url: `${served.url}/mcp` }, { protocolVersion: '2025-11-25' })
+      expect(() => mcp.onElicitation({ action: 'accept' })).toThrow(
+        /needs a connection that can carry server-initiated/,
+      )
+      await mcp.close()
+    } finally {
+      await served.close()
+    }
   })
 })
 

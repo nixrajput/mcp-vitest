@@ -57,6 +57,7 @@ export async function connectV1(
     client: client as unknown as SdkClientLike,
     onNotification: bus.onNotification,
     lifecycle,
+    supports: { roots: true, serverInitiatedRequests: true },
     // v1 signature: callTool(params, resultSchema?, options?)
     callTool: async (params, opts) =>
       (

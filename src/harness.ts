@@ -83,19 +83,19 @@ export class McpHarness {
   }
 
   /**
-   * A v2 server can only ask for input through the 2026 multi-round-trip flow.
-   * Held to a 2025 revision it has no channel to ask on at all, and a sampling
-   * attempt there hangs until the request timeout instead of failing, so refuse
-   * the registration up front rather than let a test stall for a minute.
+   * Refuses a double the connection could never deliver. Every lane states this
+   * for itself rather than being inferred from `kind`: a 2025-era HTTP server has
+   * no channel to ask on, and a sampling attempt there hangs until the request
+   * timeout instead of failing, so a test would stall for a minute.
    */
   private assertCanServeDoubles(method: string): void {
-    if (this.kind === 'v2' && this.lifecycle !== '2026-07-28') {
-      throw new Error(
-        `mcp-vitest: ${method}() needs the 2026-07-28 lifecycle on the v2 SDK; ` +
-          `this connection is held to ${this.lifecycle}. A 2025-era v2 connection ` +
-          `cannot receive server-to-client requests.`,
-      )
-    }
+    if (this.conn.supports.serverInitiatedRequests) return
+    throw new Error(
+      `mcp-vitest: ${method}() needs a connection that can carry server-initiated ` +
+        `requests. This one is held to ${this.lifecycle ?? 'an auto-negotiated revision'}, ` +
+        `and a 2025-era HTTP connection cannot receive them. Hold it to '2026-07-28', ` +
+        `or use the in-process v1 lane or a spawned stdio server.`,
+    )
   }
 
   /** Answers the server's sampling requests. */
@@ -112,10 +112,11 @@ export class McpHarness {
 
   /** Serves the server's roots/list requests. Not every lane advertises roots. */
   onRoots(roots: Root[]): void {
-    // Asks the connection what it serves rather than branching on `kind`: the
-    // v2 lane and the URL lane both advertise no roots capability, and a `kind`
-    // check missed the second one entirely, storing a double nothing reads.
-    if (this.conn.supports?.roots === false || this.kind === 'v2') {
+    // Asks the connection what it serves. `supports` is required on
+    // RawConnection, not optional: an absent field would default to "supports
+    // everything", so a future lane that forgot to declare it would silently
+    // re-create the bug where a double is stored and never read.
+    if (!this.conn.supports.roots) {
       throw new Error(
         'mcp-vitest: this connection does not advertise the roots capability, so a roots ' +
           'double would never be read. Roots is deprecated in the 2026-07-28 spec; it is ' +

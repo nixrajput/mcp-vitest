@@ -35,7 +35,7 @@ describe('lifecycle guards', () => {
   vitestTest('doubles are refused on a 2025-era v2 connection', async () => {
     const mcp = await mcpTest(() => createV2Server(), { protocolVersion: '2025-11-25' })
     expect(() => mcp.onElicitation({ action: 'accept' })).toThrow(
-      /onElicitation\(\) needs the 2026-07-28 lifecycle/,
+      /onElicitation\(\) needs a connection that can carry server-initiated/,
     )
     expect(() =>
       mcp.onSampling(() => ({
@@ -43,7 +43,7 @@ describe('lifecycle guards', () => {
         role: 'assistant',
         content: { type: 'text', text: 'x' },
       })),
-    ).toThrow(/onSampling\(\) needs the 2026-07-28 lifecycle/)
+    ).toThrow(/onSampling\(\) needs a connection that can carry server-initiated/)
   })
 
   vitestTest('an unpinned v1 harness reports no lifecycle', async () => {

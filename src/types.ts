@@ -89,11 +89,12 @@ export interface RawConnection {
   /** The revision this connection was pinned to, when it was pinned at all. */
   lifecycle?: McpLifecycle
   /**
-   * What this lane can actually serve. The harness refuses a double the
-   * connection would never read rather than storing it silently - branching on
-   * `kind` instead let a third kind slip past two separate guards.
+   * What this lane can actually serve. Required, and both fields required with
+   * it: the harness refuses a double the connection would never read, and an
+   * optional field would default to "supports everything", so a new lane that
+   * forgot to declare it would silently re-create the bug this replaced.
    */
-  supports?: { roots?: boolean; serverInitiatedRequests?: boolean }
+  supports: { roots: boolean; serverInitiatedRequests: boolean }
   close(): Promise<void>
 }
 
