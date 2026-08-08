@@ -2,7 +2,7 @@
 
 # mcp-vitest
 
-Vitest-native testing for **Model Context Protocol** servers - in-process, over the real MCP SDK, on both SDK majors.
+Vitest-native testing for **Model Context Protocol** servers - matchers, snapshots, interaction doubles, and real external servers, on both SDK majors.
 
 <br />
 
@@ -56,11 +56,11 @@ Vitest-native testing for **Model Context Protocol** servers - in-process, over 
 
 ## Overview
 
-Testing an MCP server usually means spawning a subprocess, picking a port, or hand-rolling JSON-RPC frames. mcp-vitest does none of that: your server runs **in-process**, driven by a real SDK `Client` over the SDK's own in-process transport, and you get a small harness plus typed matchers on top. The protocol is never reimplemented, so what your tests exercise is what a real client would.
+Testing an MCP server usually means spawning a subprocess, picking a port, or hand-rolling JSON-RPC frames. By default mcp-vitest does none of that: your server runs **in-process**, driven by a real SDK `Client` over the SDK's own in-process transport, and you get a small harness plus typed matchers on top. When a server cannot be imported, the same harness drives it over stdio or a URL instead. The protocol is never reimplemented, so what your tests exercise is what a real client would.
 
 ## Features
 
-- **In-process** - no ports, no spawn, no teardown races. Both SDK majors, detected automatically.
+- **In-process by default** - no ports, no spawn, no teardown races. Both SDK majors, detected automatically.
 - **Typed matchers** - seven of them, with TypeScript augmentation and did-you-mean suggestions on typos.
 - **A small harness** - tools, resources, and prompts with pagination followed for you, plus the raw SDK client as an escape hatch.
 - **Interaction doubles** - answer a server's sampling, elicitation, and roots requests from your test.

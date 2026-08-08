@@ -1,7 +1,7 @@
 {
   "name": "mcp-vitest",
   "version": "0.4.0",
-  "description": "Vitest-native testing for Model Context Protocol (MCP) servers",
+  "description": "Vitest-native testing for Model Context Protocol (MCP) servers - matchers, snapshots, interaction doubles, and real external servers, on both SDK majors",
   "type": "module",
   "engines": {
     "node": ">=20"
