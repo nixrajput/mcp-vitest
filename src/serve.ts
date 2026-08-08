@@ -1,5 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
-import { Readable } from 'node:stream'
+// Type-only, so these are erased. The runtime imports happen inside serveHandler:
+// importing node:http at module scope would make every `import 'mcp-vitest'`
+// pull in Node builtins, even for the in-process lanes that never serve HTTP.
+import type { IncomingMessage, ServerResponse } from 'node:http'
+import type { Readable as NodeReadable } from 'node:stream'
 
 /** The shape both SDK majors' HTTP handlers expose. */
 export interface FetchHandler {
@@ -12,7 +15,9 @@ export interface ServedHandler {
   close(): Promise<void>
 }
 
-function toRequest(req: IncomingMessage, base: string): Request {
+type ReadableCtor = { toWeb(stream: NodeReadable): unknown }
+
+function toRequest(req: IncomingMessage, base: string, Readable: ReadableCtor): Request {
   const url = new URL(req.url ?? '/', base)
   const headers = new Headers()
   for (const [k, v] of Object.entries(req.headers)) {
@@ -32,10 +37,12 @@ function toRequest(req: IncomingMessage, base: string): Request {
  * never contend for a fixed port.
  */
 export async function serveHandler(handler: FetchHandler): Promise<ServedHandler> {
+  const { createServer } = await import('node:http')
+  const { Readable } = await import('node:stream')
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     void (async () => {
       try {
-        const response = await handler.fetch(toRequest(req, `http://${req.headers.host}`))
+        const response = await handler.fetch(toRequest(req, `http://${req.headers.host}`, Readable))
         res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
         if (response.body) {
           for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {

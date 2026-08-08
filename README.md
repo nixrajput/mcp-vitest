@@ -43,6 +43,8 @@ Vitest-native testing for **Model Context Protocol** servers - in-process, over 
     - [`createMcpTest(serverOrFactory, options?)`](#createmcptestserverorfactory-options)
     - [Lifecycles](#lifecycles)
     - [Matchers](#matchers)
+    - [Testing an external server](#testing-an-external-server)
+    - [`serveHandler(handler)`](#servehandlerhandler)
     - [`detectServerKind(server)`](#detectserverkindserver)
   - [Migrating from 0.2](#migrating-from-02)
   - [Requirements](#requirements)
@@ -65,6 +67,7 @@ Testing an MCP server usually means spawning a subprocess, picking a port, or ha
 - **Regression safety** - snapshot manifests of your tool, resource, and prompt surface, normalized so key order and absent optionals never churn them.
 - **Real call ergonomics** - progress callbacks, `AbortSignal` cancellation, per-call timeouts, and a notification collector with `waitFor`.
 - **Interaction doubles** - answer a server's sampling, elicitation, and roots requests from your test, over the 2025 push model and the 2026 multi-round-trip flow alike.
+- **External servers** - spawn a stdio server or point at a running URL; every matcher, collector, and double works unchanged.
 - **Lifecycle coverage** - run the same tests against the 2025 and 2026-07-28 protocol revisions, one harness each.
 - **A `test` fixture** - `createMcpTest()` gives a fresh, auto-closed harness per test via vitest's `test.extend`.
 - **One runtime dependency** - `@cfworker/json-schema` (MIT, no transitive deps), used for output-schema validation. vitest and your MCP SDK stay peers, and the SDK peers are optional, so you install only the major you use.
@@ -147,7 +150,7 @@ You do not pick the transport. `mcpTest()` detects which SDK your server instanc
 
 ### `mcpTest(serverOrFactory, options?)`
 
-Connects a server and resolves with an [`McpHarness`](#mcpharness). Accepts an `McpServer` instance or a factory (sync or async) that returns one.
+Connects a server and resolves with an [`McpHarness`](#mcpharness). Accepts an `McpServer` instance, a factory (sync or async) that returns one, or a spec for a server you cannot import - `{ command, args? }` to spawn one over stdio, or `{ url, headers? }` to reach one over HTTP. See [testing an external server](#testing-an-external-server).
 
 ```ts
 import { mcpTest } from "mcp-vitest";
@@ -238,7 +241,7 @@ Each item is `{ method, params, at }`, where `at` is milliseconds since the coll
 
 A progress token is attached to a call only when you pass `onProgress` or a collector is listening, so an otherwise bare `callTool` leaves the request untouched and your server's no-token path stays testable. Progress params arrive as `{ progress, total?, message? }`: the SDK consumes the token before handing them over, so items from two _concurrent_ calls to the same tool cannot be told apart. Await one call at a time when you need to attribute them.
 
-**v2 servers collect progress only.** Under the 2026-07-28 stateless lifecycle, `list_changed` notifications are delivered over `subscriptions/listen`, which this harness does not open yet. v1 servers collect every notification the client receives.
+**v2 servers collect progress only.** Under the 2026-07-28 stateless lifecycle there is no persistent server instance to push `list_changed` from, and the server does not honour a subscription for it: opening `subscriptions/listen` for `notifications/tools/list_changed` succeeds but comes back with an empty honoured filter, and no notification arrives even when the tool list genuinely changes mid-session. This is a gap on the server side of the SDK rather than something the harness withholds, and it will be wired up once the SDK emits those notifications. v1 servers collect every notification the client receives.
 
 ### Snapshot testing
 
@@ -410,6 +413,48 @@ The three server matchers query the live server, so they are async: `await expec
 import { registerMatchers } from "mcp-vitest";
 
 registerMatchers();
+```
+
+### Testing an external server
+
+Not every server can be imported. `mcpTest` also accepts a spawn spec or a URL, and everything else - matchers, collectors, doubles, snapshots - works exactly as it does in-process. Both report `mcp.kind === 'external'`.
+
+**A server you spawn**, over stdio:
+
+```ts
+const mcp = await mcpTest({ command: "node", args: ["./dist/server.js"] });
+
+await expect(mcp).toHaveTool("search");
+expect(await mcp.callTool("search", { query: "foo" })).toHaveTextContent(/results/);
+```
+
+`env` and `cwd` are accepted too. The child process is terminated when the harness closes, which the fixture does for you.
+
+**A server already running**, over Streamable HTTP:
+
+```ts
+const mcp = await mcpTest({
+  url: "https://example.com/mcp",
+  headers: { authorization: "Bearer test-token" },
+});
+```
+
+`headers` are merged into every request, which is the seam for auth-protected servers.
+
+Unlike the in-process v2 lane, a URL connection does **not** pin a protocol revision. The server is not yours and may implement any era, so negotiation probes and meets it where it is. Pass `protocolVersion` to hold it to one.
+
+### `serveHandler(handler)`
+
+Binds a fetch-style handler - what both SDK majors' HTTP handlers expose - to an ephemeral loopback port, so you can point the URL transport at your own server without picking a port:
+
+```ts
+import { serveHandler } from "mcp-vitest";
+import { createMcpHandler } from "@modelcontextprotocol/server";
+
+const served = await serveHandler(createMcpHandler(() => createServer()));
+const mcp = await mcpTest({ url: `${served.url}/mcp` });
+// ...
+await served.close();
 ```
 
 ### `detectServerKind(server)`

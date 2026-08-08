@@ -25,7 +25,7 @@ export async function connectV1(
   // roots.listChanged - the harness never sends that notification, so claiming it
   // would invite a server to wait for one that never comes.
   const client = new Client(
-    { name: 'mcp-vitest', version: '0.3.0' },
+    { name: 'mcp-vitest', version: '0.4.0' },
     { capabilities: { sampling: {}, elicitation: {}, roots: {} } },
   )
 

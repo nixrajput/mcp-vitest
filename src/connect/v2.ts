@@ -24,7 +24,7 @@ export async function connectV2(
   // Pinned, not 'auto': auto falls back to legacy when the probe is inconclusive,
   // and a silent downgrade would turn every double into a confusing timeout.
   const client = new Client(
-    { name: 'mcp-vitest', version: '0.3.0' },
+    { name: 'mcp-vitest', version: '0.4.0' },
     {
       capabilities: { sampling: {}, elicitation: {} },
       versionNegotiation: {
