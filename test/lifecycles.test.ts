@@ -12,8 +12,7 @@ const seen: string[] = []
 describe('lifecycle matrix', () => {
   test('echo works on every lifecycle', async ({ mcp, task }) => {
     seen.push(mcp.lifecycle ?? 'unknown')
-    // The suffix is the only way a reporter distinguishes the variants, so assert
-    // it directly rather than inferring it from the count of harnesses that ran.
+    // The suffix is how a reporter distinguishes variants, so assert it directly.
     expect(task.name).toBe(`echo works on every lifecycle [${mcp.lifecycle}]`)
     const result = await mcp.callTool('echo', { message: 'x' })
     expect(result).toHaveTextContent('echo: x')

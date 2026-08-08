@@ -10,19 +10,13 @@ import type {
 import { CLIENT_INFO } from '../types.js'
 import { createNotificationBus } from './bus.js'
 
-/**
- * Spawns a server and speaks MCP over its stdio pipes. The v1 client is used
- * deliberately: external servers are the deployed fleet, and v1 speaks the widest
- * range of revisions those servers actually implement.
- */
+/** Spawns a server over stdio. v1 client: it speaks the widest range of revisions. */
 export async function connectStdio(
   spec: StdioServerSpec,
   registry: DoubleRegistry,
   lifecycle?: McpLifecycle,
 ): Promise<RawConnection> {
-  // The same ceiling and the same refusal as connectV1: this is the v1 client,
-  // which tops out at 2025-11-25. Accepting '2026-07-28' here would connect at
-  // 2025-11-25 anyway and let a lifecycle matrix print a revision it never ran.
+  // v1 tops out at 2025-11-25; accepting 2026 would silently run 2025 under that label.
   if (lifecycle === '2026-07-28') {
     throw new Error(
       'mcp-vitest: a stdio server is driven by the v1 SDK, which cannot serve the ' +
@@ -39,9 +33,7 @@ export async function connectStdio(
     env: spec.env,
     cwd: spec.cwd,
   })
-  // Same capability advertisement and handler wiring as the in-process v1 lane:
-  // a spawned server is still a v1 server, so doubles and notifications work
-  // across the pipe rather than being stubbed out.
+  // Same wiring as the in-process v1 lane; a spawned server is still a v1 server.
   const client = new Client(CLIENT_INFO, {
     capabilities: { sampling: {}, elicitation: {}, roots: {} },
   })
@@ -78,8 +70,7 @@ export async function connectStdio(
       ).callTool(params, undefined, bus.requestOptions(opts)),
     close: async () => {
       if (closed) return
-      // Closing the client closes the transport, which terminates the child.
-      // `closed` flips only on success so a caller can retry teardown.
+      // Closing the client closes the transport, terminating the child.
       await client.close()
       closed = true
     },
@@ -87,10 +78,8 @@ export async function connectStdio(
 }
 
 /**
- * Connects to an already-running server over Streamable HTTP. Unlike the
- * in-process v2 lane this does NOT pin the 2026 revision: the server belongs to
- * someone else and may implement any era, so negotiation probes by default and
- * meets it where it is. Pass `protocolVersion` to hold it to one instead.
+ * Connects to a running server over Streamable HTTP. Does not pin a revision:
+ * the server is not ours and may implement any era, so negotiation probes.
  */
 export async function connectUrl(
   spec: UrlServerSpec,
@@ -130,14 +119,8 @@ export async function connectUrl(
     client: client as unknown as SdkClientLike,
     onNotification: bus.onNotification,
     lifecycle,
-    // No roots: connectUrl advertises no roots capability and registers no
-    // roots/list handler, so onRoots must be refused rather than stored.
-    // Doubles are always accepted here. Whether a remote server can issue
-    // server-to-client requests depends on the server, not on the revision: a
-    // v1-backed HTTP server pushes fine on the 2025 era, while a stateless v2
-    // one cannot. Guessing from the era refuses working setups. And the guard
-    // exists to prevent a stall, which does not happen on this lane - a server
-    // that cannot ask fails in about 3 ms with a message naming the reason.
+    // Always true: whether a remote can ask depends on the server, not the revision,
+    // and one that cannot fails in milliseconds rather than stalling.
     supports: { roots: false, serverInitiatedRequests: true },
     callTool: async (params, opts) =>
       (

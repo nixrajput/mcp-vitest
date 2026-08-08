@@ -13,18 +13,15 @@ interface SdkRequestOptions {
 export interface NotificationBus {
   onNotification(cb: (n: Notification) => void): void
   /**
-   * Maps CallToolOptions onto SDK request options. `onprogress` is set only when
-   * the caller asked for progress: the SDK adds `_meta.progressToken` to the
-   * request whenever it is present, and servers branch on that token, so
-   * attaching one unconditionally would change what the server sees.
+   * `onprogress` is set only when asked: the SDK adds `_meta.progressToken`
+   * whenever it is present, and servers branch on that token.
    */
   requestOptions(opts?: CallToolOptions): SdkRequestOptions
 }
 
 /**
- * Wires a client's fallback notification handler into a listener set. Progress
- * never arrives there - both majors register a dedicated progress handler at
- * construction - so it is fanned out from requestOptions() instead.
+ * Progress never reaches the fallback handler on either major, so it is fanned
+ * out from requestOptions() instead.
  */
 export function createNotificationBus(client: unknown): NotificationBus {
   const listeners = new Set<(n: Notification) => void>()

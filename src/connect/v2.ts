@@ -3,11 +3,9 @@ import type { McpLifecycle, McpToolResult, RawConnection, SdkClientLike } from '
 import { CLIENT_INFO } from '../types.js'
 import { createNotificationBus } from './bus.js'
 
-// v2 in-process route per SDK docs/testing.md: createMcpHandler gives a
-// fetch-style handler, and the client transport's fetch is pointed at it. It is
-// the only in-process route that CAN reach the 2026-07-28 stateless lifecycle,
-// but reaching it takes the pin below: versionNegotiation defaults to 'legacy',
-// which negotiates 2025-11-25 over exactly the same plumbing.
+// The client transport's fetch points at createMcpHandler. This is the only
+// in-process route that can reach 2026-07-28, and only via the pin below:
+// versionNegotiation defaults to 'legacy' over exactly the same plumbing.
 const DEFAULT_LIFECYCLE: McpLifecycle = '2026-07-28'
 
 export async function connectV2(
@@ -22,16 +20,15 @@ export async function connectV2(
   const transport = new StreamableHTTPClientTransport(new URL('http://mcp-vitest.test/mcp'), {
     fetch: (url, init) => handler.fetch(new Request(url, init)),
   })
-  // Pinned, not 'auto': auto falls back to legacy when the probe is inconclusive,
-  // and a silent downgrade would turn every double into a confusing timeout.
+  // Pinned, not 'auto': auto downgrades silently, turning doubles into timeouts.
   const client = new Client(CLIENT_INFO, {
     capabilities: { sampling: {}, elicitation: {} },
     versionNegotiation: {
       mode: lifecycle === '2026-07-28' ? { pin: lifecycle } : 'legacy',
     },
   })
-  // Server-initiated requests arrive as input_required results; the client's own
-  // driver dispatches them here and retries the call (autoFulfill, maxRounds 10).
+  // Server-initiated requests arrive as input_required results; the SDK's driver
+  // dispatches them here and retries the call.
   client.setRequestHandler('sampling/createMessage', async (req) => {
     const result = await registry.requireSampling()(req.params as unknown as SamplingRequest)
     return result as unknown as never
@@ -42,9 +39,8 @@ export async function connectV2(
   })
   await client.connect(transport)
 
-  // v2 collects progress only. Opening subscriptions/listen for list_changed
-  // does not help: measured, the server returns an empty honored filter and
-  // sends nothing even when the tool list changes. Server-side gap, not ours.
+  // Progress only. A subscriptions/listen for list_changed is honored empty and
+  // sends nothing even as the tool list changes - a server-side gap.
   const bus = createNotificationBus(client)
 
   let closed = false
@@ -62,8 +58,7 @@ export async function connectV2(
       ).callTool(params, bus.requestOptions(opts)),
     close: async () => {
       if (closed) return
-      // The handler must be closed even if the client transport is already gone,
-      // and `closed` flips only on success so a caller can retry teardown.
+      // Close the handler even if the transport is gone; `closed` flips only on success.
       try {
         await client.close()
       } finally {

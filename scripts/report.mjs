@@ -78,9 +78,8 @@ const c = {
   dim: paint('2'),
 }
 
-// Progress goes to stderr, never stdout: stdout is the report's data and CI
-// pipes it into a markdown fence. Only shown on an interactive stderr, because
-// CI captures stderr into the PR summary (Task 4's crash-diagnostic fix).
+// Progress goes to stderr: stdout is the report's data, which CI pipes into a
+// markdown fence. Interactive only, because CI captures stderr into the summary.
 const PROGRESS = Boolean(process.stderr.isTTY) && !process.env.NO_COLOR
 let progressWidth = 0
 
@@ -93,8 +92,7 @@ function progress(label) {
 
 function progressDone() {
   if (!PROGRESS || progressWidth === 0) return
-  // Overwrite with spaces, then return to column 0, so the finished section's
-  // output starts on a clean line and no progress text survives in the scroll.
+  // Overwrite with spaces so no progress text survives in the scroll.
   process.stderr.write(`\r${' '.repeat(progressWidth)}\r`)
   progressWidth = 0
 }
@@ -119,10 +117,8 @@ function deltaOf(now, before) {
   return d > 0 ? c.bad(text) : c.good(text)
 }
 
-// tsdown gives shared chunks a content hash, so the same logical file has a
-// different name in every build. Collapse the hash to compare like with like.
-// ponytail: prefix match, not a manifest. An entry literally named
-// "foo-abcdefgh.js" would collapse too; ours are index/matchers/setup/snapshot.
+// tsdown content-hashes shared chunks, so a logical file is renamed every build.
+// ponytail: prefix match, not a manifest - fine while ours are the four known entries.
 const canonical = (name) => name.replace(/-[A-Za-z0-9_-]{8,}(?=\.)/, '-*')
 
 function measureDist(dir) {

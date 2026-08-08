@@ -70,10 +70,8 @@ describe('doubles (v2 / 2026 lifecycle)', () => {
     expect(result).toHaveTextContent('declined')
   })
 
-  // Deliberately different from v1's expectation. On v1 the missing-double error
-  // travels to the server as a JSON-RPC error and comes back as a tool error. On
-  // v2 the client's own MRTR driver invokes the double, so it rejects the caller
-  // directly - the better outcome, and the reason this is asserted per major.
+  // Differs from v1 by mechanism: v2 invokes the double locally, so it rejects the
+  // caller rather than returning a tool error.
   test('unregistered double rejects the call', async () => {
     const mcp = await mcpTest(() => createV2Server())
     await expect(mcp.callTool('summarize', { text: 'x' })).rejects.toThrow(
@@ -88,9 +86,8 @@ describe('doubles (v2 / 2026 lifecycle)', () => {
     )
   })
 
-  // `lifecycle` reports what the connection is held to, so on its own it would
-  // still read '2026-07-28' if the pin were deleted. The double firing is the
-  // behavioral proof: MRTR only exists on the 2026 era, so a dropped pin fails here.
+  // The double firing is the proof, not the `lifecycle` field: MRTR exists only on
+  // the 2026 era, so a deleted pin fails here.
   test('the connection really runs the 2026 MRTR flow', async () => {
     const mcp = await mcpTest(() => createV2Server())
     let calls = 0
@@ -104,9 +101,8 @@ describe('doubles (v2 / 2026 lifecycle)', () => {
     expect(mcp.lifecycle).toBe('2026-07-28')
   })
 
-  // Documents a real interaction between two shipped features: the SDK's
-  // input-required driver reports each fulfillment round through onprogress, and
-  // the bus fans that out. These events originate in the client, not the server.
+  // The SDK reports each fulfillment round through onprogress and the bus fans it
+  // out, so these events originate in the client, not the server.
   test('MRTR rounds surface as synthetic progress events', async () => {
     const mcp = await mcpTest(() => createV2Server())
     mcp.onElicitation({ action: 'accept', content: { confirm: true } })

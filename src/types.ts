@@ -1,11 +1,7 @@
 /** Non-enumerable key under which the harness attaches call metadata to a result. */
 export const TOOL_META: unique symbol = Symbol('mcp-vitest.toolMeta')
 
-/**
- * What this client reports as its identity on the wire. Single-sourced because
- * the literal silently drifted across two releases when each connect module
- * carried its own; test/connect-v1.test.ts pins it to package.json.
- */
+/** Wire identity, single-sourced; test/connect-v1.test.ts pins it to package.json. */
 export const CLIENT_INFO = { name: 'mcp-vitest', version: '0.4.0' } as const
 
 export interface ToolCallMeta {
@@ -71,11 +67,7 @@ export interface CallToolOptions {
   timeoutMs?: number
 }
 
-/**
- * Protocol revisions a connection can be held to. Only these two are reachable:
- * the client's pin mode accepts modern revisions only, and the 2025 era is
- * selectable just as "legacy", which lands on the SDK's newest 2025 revision.
- */
+/** Only two are reachable: pinning accepts modern revisions, 2025 only as "legacy". */
 export type McpLifecycle = '2025-11-25' | '2026-07-28'
 
 export interface RawConnection {
@@ -89,10 +81,8 @@ export interface RawConnection {
   /** The revision this connection was pinned to, when it was pinned at all. */
   lifecycle?: McpLifecycle
   /**
-   * What this lane can actually serve. Required, and both fields required with
-   * it: the harness refuses a double the connection would never read, and an
-   * optional field would default to "supports everything", so a new lane that
-   * forgot to declare it would silently re-create the bug this replaced.
+   * What this lane can serve. Required so a new lane cannot omit it and silently
+   * read as "supports everything".
    */
   supports: { roots: boolean; serverInitiatedRequests: boolean }
   close(): Promise<void>
@@ -136,9 +126,6 @@ export type McpServerInput =
 export interface McpTestOptions {
   /** Auto-close via vitest onTestFinished when inside a test. Default true. */
   autoClose?: boolean
-  /**
-   * Holds the connection to one protocol revision. v2 pins it; v1 can only be
-   * held to '2025-11-25', the single revision its SDK negotiates.
-   */
+  /** v1 can only be held to '2025-11-25', the single revision its SDK negotiates. */
   protocolVersion?: McpLifecycle
 }

@@ -1,8 +1,7 @@
 import type { McpHarness } from './harness.js'
 
-// Snapshots must not churn on key order or absent optionals. `_meta` is dropped
-// only from the entry itself: servers attach it there, while a nested _meta is
-// the user's own schema property and a real change worth catching.
+// `_meta` is dropped from the entry only; a nested one is the user's own schema
+// property and a real change worth catching.
 function normalize(value: unknown, dropMeta = false): unknown {
   if (Array.isArray(value)) return value.map((v) => normalize(v, dropMeta))
   if (value && typeof value === 'object') {
@@ -22,15 +21,12 @@ function normalizeEntries(entries: unknown[]): unknown {
   return entries.map((e) => normalize(e, true))
 }
 
-// A server that does not advertise a capability answers -32601 (or, on v1, an
-// assertCapability error); for a manifest "this server exposes none" is the
-// honest answer. Anything else is a real failure and must not be swallowed into
-// an empty manifest that snapshots green.
+// An unadvertised capability answers -32601; for a manifest, "exposes none" is
+// honest. Anything else must not be swallowed into a manifest that snapshots green.
 function isUnsupportedCapability(error: unknown): boolean {
   if ((error as { code?: unknown })?.code === -32601) return true
   const message = error instanceof Error ? error.message : String(error)
-  // Anchored on purpose: a substring match anywhere would treat a real failure
-  // like "backend does not support this query yet" as an absent capability.
+  // Anchored: a loose match would read "backend does not support X" as absent.
   return (
     /^(MCP error )?-32601\b/.test(message) ||
     /^Server does not support /.test(message) ||
@@ -47,9 +43,8 @@ async function orEmpty<T>(list: Promise<T[]>): Promise<T[]> {
   }
 }
 
-// Code-unit order, not localeCompare: collation depends on the host's ICU data
-// and default locale, so a committed snapshot could churn on a different CI
-// image. This is also the order capabilitiesManifest uses, so the two agree.
+// Code-unit order, not localeCompare: collation varies by host ICU data and locale,
+// so a committed snapshot could churn on a different CI image.
 function byKey<T>(key: (item: T) => string) {
   return (a: T, b: T) => {
     const x = key(a)

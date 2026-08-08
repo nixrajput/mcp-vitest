@@ -29,11 +29,7 @@ import {
 
 const MAX_PAGES = 1000
 
-/**
- * Walks a paginated list method. A server that repeats or fails to advance its
- * cursor would otherwise spin forever and take the vitest worker down with it,
- * so a stalled cursor and a runaway page count both fail loudly instead.
- */
+/** A stalled or repeating cursor fails loudly rather than spinning the worker forever. */
 async function collectPages<Page extends { nextCursor?: string }, Item>(
   fetch: (cursor?: { cursor: string }) => Promise<Page>,
   items: (page: Page) => Item[],
@@ -62,8 +58,7 @@ async function collectPages<Page extends { nextCursor?: string }, Item>(
 }
 
 export class McpHarness {
-  // registry is required, not defaulted: a default would hand a caller a
-  // registry the connection never reads, so every double would silently no-op.
+  // Required, not defaulted: a default registry is one the connection never reads.
   constructor(
     readonly kind: ServerKind,
     private readonly conn: RawConnection,
@@ -82,12 +77,7 @@ export class McpHarness {
     return this.conn.lifecycle
   }
 
-  /**
-   * Refuses a double the connection could never deliver. Every lane states this
-   * for itself rather than being inferred from `kind`: a 2025-era HTTP server has
-   * no channel to ask on, and a sampling attempt there hangs until the request
-   * timeout instead of failing, so a test would stall for a minute.
-   */
+  /** Refuses a double the connection could never deliver, which would otherwise stall. */
   private assertCanServeDoubles(method: string): void {
     if (this.conn.supports.serverInitiatedRequests) return
     throw new Error(
@@ -111,10 +101,7 @@ export class McpHarness {
 
   /** Serves the server's roots/list requests. Not every lane advertises roots. */
   onRoots(roots: Root[]): void {
-    // Asks the connection what it serves. `supports` is required on
-    // RawConnection, not optional: an absent field would default to "supports
-    // everything", so a future lane that forgot to declare it would silently
-    // re-create the bug where a double is stored and never read.
+    // Asks the lane rather than inferring from `kind`, which missed a lane before.
     if (!this.conn.supports.roots) {
       throw new Error(
         'mcp-vitest: this connection does not advertise the roots capability, so a roots ' +
@@ -144,18 +131,17 @@ export class McpHarness {
     args?: Record<string, unknown>,
     opts?: CallToolOptions,
   ): Promise<McpToolResult> {
-    // Only ask the SDK for progress when someone can receive it: it attaches
-    // _meta.progressToken whenever onprogress is set, and servers branch on it.
-    // A collector filtered to another method must not change what the server sees.
+    // The SDK attaches _meta.progressToken whenever onprogress is set and servers
+    // branch on it, so only ask for progress when someone can receive it.
     const collecting = this.collectors.some((c) => c.wantsProgress)
     const wantsProgress = opts?.onProgress ?? (collecting ? () => {} : undefined)
     const result = await this.conn.callTool(
       { name, arguments: args },
       { ...opts, onProgress: wantsProgress },
     )
-    // Carries the tool's declared outputSchema to toMatchOutputSchema() without
-    // widening the public result shape. Non-enumerable so snapshots ignore it.
-    // Best effort by design: a frozen or sealed result must not fail the call.
+    // Carries the declared outputSchema to toMatchOutputSchema() without widening the
+    // result shape. Non-enumerable so snapshots ignore it; best effort so a frozen
+    // result cannot fail the call.
     try {
       Object.defineProperty(result, TOOL_META, {
         value: {
@@ -175,8 +161,7 @@ export class McpHarness {
 
   private toolIndex?: Map<string, Awaited<ReturnType<McpHarness['listTools']>>[number]>
 
-  // Best effort: a tools/list that fails, or a tool registered after the index
-  // was built, must not turn a successful tools/call into a rejection.
+  // A failed tools/list must not turn a successful tools/call into a rejection.
   private async toolEntry(name: string) {
     try {
       if (!this.toolIndex) {
@@ -220,8 +205,7 @@ export class McpHarness {
   }
 
   async close(): Promise<void> {
-    // Drop pending waiters first: their timers would otherwise fire after the
-    // test ends and vitest would blame whichever test runs next.
+    // Drop waiters first, or their timers fire against whichever test runs next.
     for (const c of this.collectors) c.dispose()
     await this.conn.close()
   }
@@ -232,8 +216,7 @@ async function resolveInput(
   registry: DoubleRegistry,
   lifecycle?: McpLifecycle,
 ): Promise<{ kind: ServerKind; conn: RawConnection }> {
-  // Shape-routed before detection: an external server is a spec object, not an
-  // SDK instance, so detectServerKind would only reject it.
+  // Routed by shape first: a spec object is not an SDK instance to detect.
   if (isStdioServerSpec(input)) {
     return { kind: 'external', conn: await connectStdio(input, registry, lifecycle) }
   }

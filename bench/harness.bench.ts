@@ -8,9 +8,6 @@ import { createV2Server } from '../test/servers/v2.js'
 // vitest.config.ts setupFiles applies to tests, not bench runs.
 registerMatchers()
 
-// No @types/node: tsconfig.json's types: [] deliberately keeps Node globals out of src/.
-declare const process: { env: Record<string, string | undefined> }
-
 // Kept short in hook mode: these numbers are indicative, not publication grade.
 const time = Number(process.env.MCP_VITEST_BENCH_TIME_MS ?? 500)
 const opts = { time, warmupTime: Math.min(100, time) }
@@ -87,8 +84,7 @@ describe.each(majors)('operations (%s)', (_label, make) => {
     },
   )
 
-  // These harnesses use autoClose: false, so nothing else closes them. A live
-  // v2 handler can keep the process from exiting.
+  // autoClose is false here, and a live v2 handler can keep the process alive.
   afterAll(async () => {
     await mcp?.close()
   })

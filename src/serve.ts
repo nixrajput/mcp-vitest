@@ -1,6 +1,5 @@
-// Type-only, so these are erased. The runtime imports happen inside serveHandler:
-// importing node:http at module scope would make every `import 'mcp-vitest'`
-// pull in Node builtins, even for the in-process lanes that never serve HTTP.
+// Type-only here, imported for real inside serveHandler: a module-scope import
+// would pull Node builtins into every `import 'mcp-vitest'`.
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import type { Readable as NodeReadable } from 'node:stream'
 
@@ -25,16 +24,14 @@ function toRequest(req: IncomingMessage, base: string, Readable: ReadableCtor): 
     else if (Array.isArray(v)) for (const item of v) headers.append(k, item)
   }
   const method = req.method ?? 'GET'
-  // GET/HEAD must not carry a body, and Node requires `duplex` whenever one is
-  // streamed rather than buffered.
+  // Node requires `duplex` whenever a body is streamed rather than buffered.
   const body = method === 'GET' || method === 'HEAD' ? undefined : (Readable.toWeb(req) as BodyInit)
   return new Request(url, { method, headers, body, duplex: 'half' } as RequestInit)
 }
 
 /**
- * Serves a fetch-style handler on an ephemeral loopback port so it can be tested
- * over real HTTP rather than in-process. Binds port 0, so parallel test files
- * never contend for a fixed port.
+ * Serves a fetch-style handler over real HTTP. Binds port 0 on loopback, so
+ * parallel test files never contend for a fixed port.
  */
 export async function serveHandler(handler: FetchHandler): Promise<ServedHandler> {
   const { createServer } = await import('node:http')
@@ -43,16 +40,14 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
     void (async () => {
       try {
         const response = await handler.fetch(toRequest(req, `http://${req.headers.host}`, Readable))
-        // The client can vanish while handler.fetch() is still running. The
-        // socket is then already gone, writeHead below would throw, and nobody
-        // would ever read the body - so release the producer here instead.
+        // Client vanished during handler.fetch(): writeHead would throw and
+        // nothing below would drain the body, so release the producer here.
         if (res.destroyed) {
           await response.body?.cancel().catch(() => {})
           return
         }
-        // set-cookie is the one header Headers does not pre-join: entries()
-        // yields it once per value, so Object.fromEntries would keep only the
-        // last. Every other name arrives already joined.
+        // set-cookie is the one header Headers does not pre-join; entries()
+        // yields it once per value, so fromEntries alone would keep only the last.
         const outHeaders: Record<string, string | string[]> = Object.fromEntries(
           response.headers.entries(),
         )
@@ -60,11 +55,8 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
         if (cookies.length > 0) outHeaders['set-cookie'] = cookies
         res.writeHead(response.status, outHeaders)
         if (response.body) {
-          // Read through an explicit reader rather than `for await`. The socket can
-          // die mid-stream (closeAllConnections destroys it), and a stream that
-          // never yields again would leave the read pending forever. Cancelling
-          // the reader we hold settles it; cancelling the *body* cannot, because
-          // iterating it already locked the stream.
+          // An explicit reader, not `for await`: when the socket dies mid-stream the
+          // read must be cancellable, and `for await` locks the body against cancel.
           const reader = response.body.getReader()
           res.on('close', () => void reader.cancel().catch(() => {}))
           let drained = false
@@ -78,18 +70,14 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
               res.write(value)
             }
           } finally {
-            // Cancel whenever the body was not read to completion - including the
-            // case where the client vanished while handler.fetch() was still
-            // running, so `close` fired before the loop and it never ran at all.
-            // Without this the producer is left running with nobody reading.
+            // Not drained means nobody will read the rest; release the producer.
             if (!drained) void reader.cancel().catch(() => {})
             reader.releaseLock()
           }
         }
         res.end()
       } catch (err) {
-        // A handler that throws must still answer: an unanswered socket would
-        // hang the caller until its own timeout, with no indication why.
+        // A thrown handler must still answer, or the caller hangs to its own timeout.
         if (!res.headersSent) res.writeHead(500, { 'content-type': 'text/plain' })
         res.end(String(err))
       }
@@ -104,10 +92,8 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
     url: `http://127.0.0.1:${address.port}`,
     close: () =>
       new Promise<void>((resolve, reject) => {
-        // closeAllConnections first. close() alone waits for open connections to
-        // end, and an MCP HTTP transport holds a streaming response open, so the
-        // callback never fires: measured hanging indefinitely against a live SSE
-        // stream, while a completed request closes cleanly either way.
+        // close() alone waits for open connections, and an MCP transport holds a
+        // stream open indefinitely, so the callback would never fire.
         server.closeAllConnections()
         server.close((err) => (err ? reject(err) : resolve()))
       }),

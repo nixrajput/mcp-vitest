@@ -21,9 +21,8 @@ describe('serveHandler', () => {
     }
   })
 
-  // Asserts the body is genuinely streamed, not buffered and flushed at the end:
-  // the first chunk must reach the client before the second is even produced. A
-  // fully buffering adapter would pass a test that only checked the final text.
+  // The first chunk must arrive before the second is produced, so a buffering
+  // adapter deadlocks here instead of passing.
   test('streams response bodies incrementally', async () => {
     let releaseSecond: (() => void) | undefined
     const secondQueued = new Promise<void>((r) => {
@@ -108,10 +107,8 @@ describe('serveHandler', () => {
     await expect(fetch(url, { signal: AbortSignal.timeout(2000) })).rejects.toThrow()
   })
 
-  // The completed-request case above closes cleanly with or without
-  // closeAllConnections, so it cannot catch a regression there. An MCP HTTP
-  // transport holds a streaming response open, and close() alone hangs forever
-  // on one - so this is the case that has to be pinned.
+  // A completed request closes cleanly either way, so only the streaming case can
+  // catch a regression in closeAllConnections.
   test('close() does not hang on a live stream', async () => {
     const { url, close } = await serveHandler({
       fetch: async () =>
@@ -155,8 +152,7 @@ describe('stdio transport', () => {
     expect(contents[0]?.text).toBe('hello')
   })
 
-  // The plan stubbed notifications and doubles out for stdio. Both work over a
-  // real pipe, and asserting it here stops either becoming a silent no-op.
+  // Proves doubles answer across a process boundary rather than silently no-op.
   test('doubles answer across the pipe', async () => {
     const mcp = await spawn()
     mcp.onElicitation({ action: 'accept', content: { confirm: true } })
@@ -165,9 +161,7 @@ describe('stdio transport', () => {
     )
   })
 
-  // env and cwd are documented options; without this they were only assumed to
-  // reach the child. The SDK merges env over a small allowlist rather than
-  // inheriting the parent's, which is exactly what this pins.
+  // The SDK merges env over a small allowlist rather than inheriting the parent's.
   test('forwards env and cwd to the spawned child', async () => {
     const mcp = await mcpTest({
       command: 'node',
@@ -233,9 +227,7 @@ describe('url transport', () => {
 })
 
 describe('external lane guards', () => {
-  // Regression for the worst shape a test harness can ship: before this, a
-  // lifecycle matrix over a spawned server ran both variants at 2025-11-25 and
-  // printed one of them as [2026-07-28] next to a passing test.
+  // Without this a lifecycle matrix would label a 2025 run as [2026-07-28].
   test('a stdio server refuses the 2026 lifecycle', async () => {
     await expect(
       mcpTest({ command: 'node', args: [STDIO_SERVER] }, { protocolVersion: '2026-07-28' }),
@@ -265,21 +257,15 @@ describe('external lane guards', () => {
     }
   })
 
-  // Not just 'does not throw': the stdio fixture has a list-roots tool, so this
-  // asserts the registered handler actually answers across the pipe.
+  // Asserts the handler answers, not merely that onRoots does not throw.
   test('roots doubles are served on the stdio lane', async () => {
     const mcp = await mcpTest({ command: 'node', args: [STDIO_SERVER] })
     mcp.onRoots([{ uri: 'file:///workspace' }])
     expect(await mcp.callTool('list-roots')).toHaveTextContent('roots: file:///workspace')
   })
 
-  // The gap the capability record closes: a url connection explicitly held to a
-  // 2025 revision cannot receive server-initiated requests at all, so a double
-  // registered there would be stored and never invoked.
-  // A url connection accepts doubles on any revision. Whether the remote can
-  // actually ask depends on the server, not the era - and when it cannot, it
-  // says so in milliseconds rather than stalling, so refusing here would only
-  // block the servers that do work.
+  // Doubles are accepted on any revision: whether a remote can ask depends on the
+  // server, not the era, and one that cannot says so in milliseconds.
   test('doubles are accepted on a legacy-held url connection', async () => {
     const { createMcpHandler } = await import('@modelcontextprotocol/server')
     const { createV2Server } = await import('./servers/v2.js')
@@ -303,10 +289,7 @@ describe('external lane guards', () => {
 })
 
 describe('serveHandler header fidelity', () => {
-  // Headers.entries() yields set-cookie once per value and Object.fromEntries
-  // keeps only the last, so a naive copy silently drops all but one cookie.
-  // It is the one header Headers does not pre-join, and exactly what an
-  // auth-protected server sets.
+  // entries() yields set-cookie once per value, so a fromEntries copy keeps only one.
   test('preserves multiple set-cookie headers', async () => {
     const { url, close } = await serveHandler({
       fetch: async () => {

@@ -113,9 +113,8 @@ export const mcpMatchers = {
       | ToolCallMeta
       | undefined
     const effective = schema ?? meta?.outputSchema
-    // These two are misconfiguration, not a failed assertion: returning
-    // pass: false would make `.not.toMatchOutputSchema()` pass without
-    // validating anything.
+    // Misconfiguration, not a failed assertion: pass:false would let `.not` pass
+    // without validating anything.
     if (!effective) {
       throw new TypeError(
         'No output schema available: the tool declared none and no schema argument ' +
