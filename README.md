@@ -425,7 +425,9 @@ Not every server can be imported. `mcpTest` also accepts a spawn spec or a URL, 
 const mcp = await mcpTest({ command: "node", args: ["./dist/server.js"] });
 
 await expect(mcp).toHaveTool("search");
-expect(await mcp.callTool("search", { query: "foo" })).toHaveTextContent(/results/);
+expect(await mcp.callTool("search", { query: "foo" })).toHaveTextContent(
+  /results/,
+);
 ```
 
 `env` and `cwd` are accepted too. The child process is terminated when the harness closes, which the fixture does for you.
