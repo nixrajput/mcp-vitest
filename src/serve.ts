@@ -43,9 +43,22 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
     void (async () => {
       try {
         const response = await handler.fetch(toRequest(req, `http://${req.headers.host}`, Readable))
-        res.writeHead(response.status, Object.fromEntries(response.headers.entries()))
+        // set-cookie is the one header Headers does not pre-join: entries()
+        // yields it once per value, so Object.fromEntries would keep only the
+        // last. Every other name arrives already joined.
+        const outHeaders: Record<string, string | string[]> = Object.fromEntries(
+          response.headers.entries(),
+        )
+        const cookies = response.headers.getSetCookie()
+        if (cookies.length > 0) outHeaders['set-cookie'] = cookies
+        res.writeHead(response.status, outHeaders)
         if (response.body) {
-          for await (const chunk of response.body as unknown as AsyncIterable<Uint8Array>) {
+          // Stop pulling if the socket dies: closeAllConnections() destroys it,
+          // and without this the loop keeps awaiting a stream nobody will read.
+          const body = response.body
+          res.on('close', () => void body.cancel().catch(() => {}))
+          for await (const chunk of body as unknown as AsyncIterable<Uint8Array>) {
+            if (res.destroyed) break
             res.write(chunk)
           }
         }

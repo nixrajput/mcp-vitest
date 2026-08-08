@@ -82,7 +82,8 @@ export async function detectServerKind(server: unknown): Promise<ServerKind> {
   throw new TypeError(
     'mcp-vitest: unrecognized server. Pass an McpServer instance (or factory) from ' +
       '@modelcontextprotocol/sdk (v1) or @modelcontextprotocol/server (v2), and make ' +
-      'sure that SDK package is installed.' +
+      'sure that SDK package is installed. For a server you cannot import, pass ' +
+      '{ command, args } to spawn one over stdio or { url } to reach a running one.' +
       (problems.length ? ` SDK imports failed: ${problems.join('; ')}` : '') +
       (hasConstructorNamed(server, ['McpServer', 'Server'])
         ? ' The object looks like an McpServer but is not an instance of the copy ' +

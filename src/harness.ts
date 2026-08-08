@@ -110,15 +110,16 @@ export class McpHarness {
     this.registry.elicitation = typeof double === 'function' ? double : () => double
   }
 
-  /** Serves the server's roots/list requests. v1 only: roots is deprecated in the 2026 spec. */
+  /** Serves the server's roots/list requests. Not every lane advertises roots. */
   onRoots(roots: Root[]): void {
-    // Refuse rather than accept a double the v2 connection never reads: it
-    // advertises no roots capability, so the server's request fails with an SDK
-    // capability error that never mentions the double the test registered.
-    if (this.kind === 'v2') {
+    // Asks the connection what it serves rather than branching on `kind`: the
+    // v2 lane and the URL lane both advertise no roots capability, and a `kind`
+    // check missed the second one entirely, storing a double nothing reads.
+    if (this.conn.supports?.roots === false || this.kind === 'v2') {
       throw new Error(
-        'mcp-vitest: roots doubles are v1-only in this version. Roots is deprecated in ' +
-          'the 2026-07-28 spec, so the v2 lane does not advertise the capability.',
+        'mcp-vitest: this connection does not advertise the roots capability, so a roots ' +
+          'double would never be read. Roots is deprecated in the 2026-07-28 spec; it is ' +
+          'served on the in-process v1 lane and on a spawned stdio server.',
       )
     }
     this.registry.roots = roots
@@ -234,7 +235,7 @@ async function resolveInput(
   // Shape-routed before detection: an external server is a spec object, not an
   // SDK instance, so detectServerKind would only reject it.
   if (isStdioServerSpec(input)) {
-    return { kind: 'external', conn: await connectStdio(input, registry) }
+    return { kind: 'external', conn: await connectStdio(input, registry, lifecycle) }
   }
   if (isUrlServerSpec(input)) {
     return { kind: 'external', conn: await connectUrl(input, registry, lifecycle) }

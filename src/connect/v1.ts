@@ -1,5 +1,6 @@
 import type { DoubleRegistry } from '../doubles.js'
 import type { McpLifecycle, McpToolResult, RawConnection, SdkClientLike } from '../types.js'
+import { CLIENT_INFO } from '../types.js'
 import { createNotificationBus } from './bus.js'
 
 // v1 servers use the 2025-era stateful lifecycle; InMemoryTransport is the
@@ -24,10 +25,9 @@ export async function connectV1(
   // during initialize, long before a test body can register its doubles. No
   // roots.listChanged - the harness never sends that notification, so claiming it
   // would invite a server to wait for one that never comes.
-  const client = new Client(
-    { name: 'mcp-vitest', version: '0.4.0' },
-    { capabilities: { sampling: {}, elicitation: {}, roots: {} } },
-  )
+  const client = new Client(CLIENT_INFO, {
+    capabilities: { sampling: {}, elicitation: {}, roots: {} },
+  })
 
   const { CreateMessageRequestSchema, ElicitRequestSchema, ListRootsRequestSchema } = await import(
     '@modelcontextprotocol/sdk/types.js'

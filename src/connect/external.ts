@@ -7,6 +7,7 @@ import type {
   StdioServerSpec,
   UrlServerSpec,
 } from '../types.js'
+import { CLIENT_INFO } from '../types.js'
 import { createNotificationBus } from './bus.js'
 
 /**
@@ -17,7 +18,18 @@ import { createNotificationBus } from './bus.js'
 export async function connectStdio(
   spec: StdioServerSpec,
   registry: DoubleRegistry,
+  lifecycle?: McpLifecycle,
 ): Promise<RawConnection> {
+  // The same ceiling and the same refusal as connectV1: this is the v1 client,
+  // which tops out at 2025-11-25. Accepting '2026-07-28' here would connect at
+  // 2025-11-25 anyway and let a lifecycle matrix print a revision it never ran.
+  if (lifecycle === '2026-07-28') {
+    throw new Error(
+      'mcp-vitest: a stdio server is driven by the v1 SDK, which cannot serve the ' +
+        "2026-07-28 lifecycle; it negotiates 2025-11-25. Drop '2026-07-28' from " +
+        'lifecycles, or reach the server over { url } instead.',
+    )
+  }
   const { Client } = await import('@modelcontextprotocol/sdk/client/index.js')
   const { StdioClientTransport } = await import('@modelcontextprotocol/sdk/client/stdio.js')
 
@@ -30,10 +42,9 @@ export async function connectStdio(
   // Same capability advertisement and handler wiring as the in-process v1 lane:
   // a spawned server is still a v1 server, so doubles and notifications work
   // across the pipe rather than being stubbed out.
-  const client = new Client(
-    { name: 'mcp-vitest', version: '0.4.0' },
-    { capabilities: { sampling: {}, elicitation: {}, roots: {} } },
-  )
+  const client = new Client(CLIENT_INFO, {
+    capabilities: { sampling: {}, elicitation: {}, roots: {} },
+  })
 
   const { CreateMessageRequestSchema, ElicitRequestSchema, ListRootsRequestSchema } = await import(
     '@modelcontextprotocol/sdk/types.js'
@@ -57,6 +68,8 @@ export async function connectStdio(
   return {
     client: client as unknown as SdkClientLike,
     onNotification: bus.onNotification,
+    lifecycle,
+    supports: { roots: true, serverInitiatedRequests: true },
     callTool: async (params, opts) =>
       (
         client as unknown as {
@@ -89,20 +102,17 @@ export async function connectUrl(
   const transport = new StreamableHTTPClientTransport(new URL(spec.url), {
     requestInit: spec.headers ? { headers: spec.headers } : undefined,
   })
-  const client = new Client(
-    { name: 'mcp-vitest', version: '0.4.0' },
-    {
-      capabilities: { sampling: {}, elicitation: {} },
-      versionNegotiation: {
-        mode:
-          lifecycle === undefined
-            ? 'auto'
-            : lifecycle === '2026-07-28'
-              ? { pin: lifecycle }
-              : 'legacy',
-      },
+  const client = new Client(CLIENT_INFO, {
+    capabilities: { sampling: {}, elicitation: {} },
+    versionNegotiation: {
+      mode:
+        lifecycle === undefined
+          ? 'auto'
+          : lifecycle === '2026-07-28'
+            ? { pin: lifecycle }
+            : 'legacy',
     },
-  )
+  })
   client.setRequestHandler('sampling/createMessage', async (req) => {
     const result = await registry.requireSampling()(req.params as unknown as SamplingRequest)
     return result as unknown as never
@@ -120,6 +130,9 @@ export async function connectUrl(
     client: client as unknown as SdkClientLike,
     onNotification: bus.onNotification,
     lifecycle,
+    // No roots: connectUrl advertises no roots capability and registers no
+    // roots/list handler, so onRoots must be refused rather than stored.
+    supports: { roots: false, serverInitiatedRequests: true },
     callTool: async (params, opts) =>
       (
         client as unknown as {

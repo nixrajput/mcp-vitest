@@ -33,7 +33,7 @@
     "build": "tsdown src/index.ts src/matchers.ts src/setup.ts src/snapshot.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
     "test": "vitest run",
     "bench": "vitest bench --run",
-    "ts:check": "tsc --noEmit",
+    "ts:check": "tsc --noEmit && node scripts/check-no-node-globals.mjs",
     "lint": "biome check .",
     "format": "biome format --write .",
     "report": "node scripts/report.mjs",

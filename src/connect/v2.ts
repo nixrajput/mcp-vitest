@@ -1,5 +1,6 @@
 import type { DoubleRegistry, ElicitationRequest, SamplingRequest } from '../doubles.js'
 import type { McpLifecycle, McpToolResult, RawConnection, SdkClientLike } from '../types.js'
+import { CLIENT_INFO } from '../types.js'
 import { createNotificationBus } from './bus.js'
 
 // v2 in-process route per SDK docs/testing.md: createMcpHandler gives a
@@ -23,15 +24,12 @@ export async function connectV2(
   })
   // Pinned, not 'auto': auto falls back to legacy when the probe is inconclusive,
   // and a silent downgrade would turn every double into a confusing timeout.
-  const client = new Client(
-    { name: 'mcp-vitest', version: '0.4.0' },
-    {
-      capabilities: { sampling: {}, elicitation: {} },
-      versionNegotiation: {
-        mode: lifecycle === '2026-07-28' ? { pin: lifecycle } : 'legacy',
-      },
+  const client = new Client(CLIENT_INFO, {
+    capabilities: { sampling: {}, elicitation: {} },
+    versionNegotiation: {
+      mode: lifecycle === '2026-07-28' ? { pin: lifecycle } : 'legacy',
     },
-  )
+  })
   // Server-initiated requests arrive as input_required results; the client's own
   // driver dispatches them here and retries the call (autoFulfill, maxRounds 10).
   client.setRequestHandler('sampling/createMessage', async (req) => {
@@ -44,8 +42,9 @@ export async function connectV2(
   })
   await client.connect(transport)
 
-  // list_changed-style notifications need subscriptions/listen under the 2026
-  // lifecycle, which this harness does not open, so v2 collects progress only.
+  // v2 collects progress only. Opening subscriptions/listen for list_changed
+  // does not help: measured, the server returns an empty honoured filter and
+  // sends nothing even when the tool list changes. Server-side gap, not ours.
   const bus = createNotificationBus(client)
 
   let closed = false

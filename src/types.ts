@@ -1,6 +1,13 @@
 /** Non-enumerable key under which the harness attaches call metadata to a result. */
 export const TOOL_META: unique symbol = Symbol('mcp-vitest.toolMeta')
 
+/**
+ * What this client reports as its identity on the wire. Single-sourced because
+ * the literal silently drifted across two releases when each connect module
+ * carried its own; test/connect-v1.test.ts pins it to package.json.
+ */
+export const CLIENT_INFO = { name: 'mcp-vitest', version: '0.4.0' } as const
+
 export interface ToolCallMeta {
   toolName: string
   outputSchema?: Record<string, unknown>
@@ -81,6 +88,12 @@ export interface RawConnection {
   onNotification(cb: (n: { method: string; params: unknown }) => void): void
   /** The revision this connection was pinned to, when it was pinned at all. */
   lifecycle?: McpLifecycle
+  /**
+   * What this lane can actually serve. The harness refuses a double the
+   * connection would never read rather than storing it silently - branching on
+   * `kind` instead let a third kind slip past two separate guards.
+   */
+  supports?: { roots?: boolean; serverInitiatedRequests?: boolean }
   close(): Promise<void>
 }
 

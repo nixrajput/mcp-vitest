@@ -430,6 +430,8 @@ expect(await mcp.callTool("search", { query: "foo" })).toHaveTextContent(/result
 
 `env` and `cwd` are accepted too. The child process is terminated when the harness closes, which the fixture does for you.
 
+One thing worth knowing about `env`: the MCP SDK does not hand the child your full environment. It starts from a small allowlist (`HOME`, `PATH`, `SHELL`, `TERM`, `USER`, and their platform equivalents) and merges whatever you pass on top. A server that reads, say, `API_KEY` from the ambient environment will not see it unless you pass it explicitly.
+
 **A server already running**, over Streamable HTTP:
 
 ```ts

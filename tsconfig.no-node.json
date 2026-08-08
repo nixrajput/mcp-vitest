@@ -1,0 +1,12 @@
+// Guards what `types: []` used to guarantee. Everything in src/ except the one
+// file that deliberately runs a Node http server must typecheck with no Node
+// types at all, so an accidental `process`/`Buffer` reference fails here rather
+// than shipping to a consumer whose runtime has neither.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": ["src"],
+  "exclude": ["src/serve.ts"]
+}

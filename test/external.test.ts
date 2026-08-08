@@ -1,6 +1,10 @@
+import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { mcpTest } from '../src/index.js'
 import { serveHandler } from '../src/serve.js'
+
+// Absolute, so the suite does not depend on the process working directory.
+const STDIO_SERVER = fileURLToPath(new URL('./servers/stdio-server.mjs', import.meta.url))
 
 describe('serveHandler', () => {
   test('serves a fetch handler on a real port', async () => {
@@ -112,7 +116,7 @@ describe('serveHandler', () => {
 })
 
 describe('stdio transport', () => {
-  const spawn = () => mcpTest({ command: 'node', args: ['test/servers/stdio-server.mjs'] })
+  const spawn = () => mcpTest({ command: 'node', args: [STDIO_SERVER] })
 
   test('spawns and tests an external stdio server', async () => {
     const mcp = await spawn()
@@ -139,7 +143,10 @@ describe('stdio transport', () => {
   })
 
   test('an unspawnable command fails with a clear error', async () => {
-    await expect(mcpTest({ command: 'definitely-not-a-real-binary-xyz' })).rejects.toThrow()
+    // No bare toThrow(): that passes on any error at all, so 'clear' goes untested.
+    await expect(mcpTest({ command: 'definitely-not-a-real-binary-xyz' })).rejects.toThrow(
+      /definitely-not-a-real-binary-xyz|ENOENT|spawn/i,
+    )
   })
 })
 
@@ -147,7 +154,7 @@ describe('url transport', () => {
   async function serveV2() {
     const { createMcpHandler } = await import('@modelcontextprotocol/server')
     const { createV2Server } = await import('./servers/v2.js')
-    return serveHandler(createMcpHandler(() => createV2Server()) as never)
+    return serveHandler(createMcpHandler(() => createV2Server()))
   }
 
   test('tests a served v2 server over real HTTP', async () => {
@@ -185,4 +192,66 @@ describe('url transport', () => {
   test('an unreachable url fails rather than hanging', async () => {
     await expect(mcpTest({ url: 'http://127.0.0.1:1/mcp' })).rejects.toThrow()
   }, 15_000)
+})
+
+describe('external lane guards', () => {
+  // Regression for the worst shape a test harness can ship: before this, a
+  // lifecycle matrix over a spawned server ran both variants at 2025-11-25 and
+  // printed one of them as [2026-07-28] next to a passing test.
+  test('a stdio server refuses the 2026 lifecycle', async () => {
+    await expect(
+      mcpTest({ command: 'node', args: [STDIO_SERVER] }, { protocolVersion: '2026-07-28' }),
+    ).rejects.toThrow(/cannot serve the 2026-07-28 lifecycle/)
+  })
+
+  test('a stdio server reports the lifecycle it was held to', async () => {
+    const mcp = await mcpTest(
+      { command: 'node', args: [STDIO_SERVER] },
+      { protocolVersion: '2025-11-25' },
+    )
+    expect(mcp.lifecycle).toBe('2025-11-25')
+  })
+
+  test('roots doubles are refused on the url lane', async () => {
+    const { createMcpHandler } = await import('@modelcontextprotocol/server')
+    const { createV2Server } = await import('./servers/v2.js')
+    const served = await serveHandler(createMcpHandler(() => createV2Server()))
+    try {
+      const mcp = await mcpTest({ url: `${served.url}/mcp` })
+      expect(() => mcp.onRoots([{ uri: 'file:///x' }])).toThrow(
+        /does not advertise the roots capability/,
+      )
+      await mcp.close()
+    } finally {
+      await served.close()
+    }
+  })
+
+  test('roots doubles are served on the stdio lane', async () => {
+    const mcp = await mcpTest({ command: 'node', args: [STDIO_SERVER] })
+    expect(() => mcp.onRoots([{ uri: 'file:///workspace' }])).not.toThrow()
+  })
+})
+
+describe('serveHandler header fidelity', () => {
+  // Headers.entries() yields set-cookie once per value and Object.fromEntries
+  // keeps only the last, so a naive copy silently drops all but one cookie.
+  // It is the one header Headers does not pre-join, and exactly what an
+  // auth-protected server sets.
+  test('preserves multiple set-cookie headers', async () => {
+    const { url, close } = await serveHandler({
+      fetch: async () => {
+        const h = new Headers()
+        h.append('set-cookie', 'a=1; Path=/')
+        h.append('set-cookie', 'b=2; Path=/')
+        return new Response('ok', { headers: h })
+      },
+    })
+    try {
+      const res = await fetch(url)
+      expect(res.headers.getSetCookie()).toEqual(['a=1; Path=/', 'b=2; Path=/'])
+    } finally {
+      await close()
+    }
+  })
 })

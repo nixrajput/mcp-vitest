@@ -83,7 +83,9 @@ describe('doubles (v2 / 2026 lifecycle)', () => {
 
   test('roots doubles are refused on v2', async () => {
     const mcp = await mcpTest(() => createV2Server())
-    expect(() => mcp.onRoots([{ uri: 'file:///workspace' }])).toThrow(/roots doubles are v1-only/)
+    expect(() => mcp.onRoots([{ uri: 'file:///workspace' }])).toThrow(
+      /does not advertise the roots capability/,
+    )
   })
 
   // `lifecycle` reports what the connection is held to, so on its own it would
