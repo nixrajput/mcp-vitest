@@ -187,7 +187,7 @@ Anything the harness does not wrap is one hop away on `mcp.client`.
 
 ### Call options
 
-`callTool` takes an options bag for progress, cancellation, and timeouts. Each option maps onto the underlying SDK's own request options, so behaviour is the SDK's, not a reimplementation.
+`callTool` takes an options bag for progress, cancellation, and timeouts. Each option maps onto the underlying SDK's own request options, so behavior is the SDK's, not a reimplementation.
 
 ```ts
 // progress
@@ -322,7 +322,7 @@ Three things worth knowing:
 
 - **Doubles need a connection that can carry server-initiated requests.** That is the default everywhere except a v2 or URL connection held to a 2025 revision, which has no such channel - registering there throws immediately rather than letting the call stall.
 - **Sampling and roots are deprecated** as of 2026-07-28 (SEP-2577), with at least a twelve-month window. Elicitation is not.
-- **On v2, a call that uses a double emits an extra progress event** the server never sent - the SDK reports each fulfilment round through the progress channel. It reaches `onProgress` and any progress collector, so assert on the events you care about rather than a bare count.
+- **On v2, a call that uses a double emits an extra progress event** the server never sent - the SDK reports each fulfillment round through the progress channel. It reaches `onProgress` and any progress collector, so assert on the events you care about rather than a bare count.
 
 ### Roots
 

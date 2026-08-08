@@ -103,7 +103,7 @@ describe('toMatchOutputSchema misconfiguration', () => {
     ).toThrow(/structuredContent/i)
   })
 
-  test('draft-04 boolean exclusiveMinimum is honoured', () => {
+  test('draft-04 boolean exclusiveMinimum is honored', () => {
     const result = { content: [], structuredContent: { n: 5 } }
     expect(() =>
       expect(result).toMatchOutputSchema({

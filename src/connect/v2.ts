@@ -43,7 +43,7 @@ export async function connectV2(
   await client.connect(transport)
 
   // v2 collects progress only. Opening subscriptions/listen for list_changed
-  // does not help: measured, the server returns an empty honoured filter and
+  // does not help: measured, the server returns an empty honored filter and
   // sends nothing even when the tool list changes. Server-side gap, not ours.
   const bus = createNotificationBus(client)
 

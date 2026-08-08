@@ -105,7 +105,7 @@ describe('doubles (v2 / 2026 lifecycle)', () => {
   })
 
   // Documents a real interaction between two shipped features: the SDK's
-  // input-required driver reports each fulfilment round through onprogress, and
+  // input-required driver reports each fulfillment round through onprogress, and
   // the bus fans that out. These events originate in the client, not the server.
   test('MRTR rounds surface as synthetic progress events', async () => {
     const mcp = await mcpTest(() => createV2Server())
