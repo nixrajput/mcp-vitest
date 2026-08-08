@@ -60,17 +60,15 @@ Testing an MCP server usually means spawning a subprocess, picking a port, or ha
 
 ## Features
 
-- **In-process, no subprocess** - no ports, no spawn, no teardown races.
-- **Both SDK majors** - v1 over `InMemoryTransport`, v2 over the SDK's `handler.fetch` route. Detected automatically.
-- **A small harness** - tools, resources, and prompts, with pagination followed for you, plus the raw SDK client as an escape hatch.
-- **Typed matchers** - `toHaveTool`, `toHaveResource`, `toHavePrompt`, `toHaveTextContent`, `toHaveContent`, `toMatchOutputSchema`, `toBeToolError`, with TypeScript augmentation and did-you-mean suggestions on typos.
-- **Regression safety** - snapshot manifests of your tool, resource, and prompt surface, normalized so key order and absent optionals never churn them.
+- **In-process** - no ports, no spawn, no teardown races. Both SDK majors, detected automatically.
+- **Typed matchers** - seven of them, with TypeScript augmentation and did-you-mean suggestions on typos.
+- **A small harness** - tools, resources, and prompts with pagination followed for you, plus the raw SDK client as an escape hatch.
+- **Interaction doubles** - answer a server's sampling, elicitation, and roots requests from your test.
+- **External servers** - spawn one over stdio or point at a running URL; everything above works unchanged.
+- **Lifecycle coverage** - run the same tests against the 2025 and 2026-07-28 protocol revisions.
+- **Regression safety** - snapshot manifests normalized so key order and absent optionals never churn them.
 - **Real call ergonomics** - progress callbacks, `AbortSignal` cancellation, per-call timeouts, and a notification collector with `waitFor`.
-- **Interaction doubles** - answer a server's sampling, elicitation, and roots requests from your test, over the 2025 push model and the 2026 multi-round-trip flow alike.
-- **External servers** - spawn a stdio server or point at a running URL; every matcher, collector, and double works unchanged.
-- **Lifecycle coverage** - run the same tests against the 2025 and 2026-07-28 protocol revisions, one harness each.
-- **A `test` fixture** - `createMcpTest()` gives a fresh, auto-closed harness per test via vitest's `test.extend`.
-- **One runtime dependency** - `@cfworker/json-schema` (MIT, no transitive deps), used for output-schema validation. vitest and your MCP SDK stay peers, and the SDK peers are optional, so you install only the major you use.
+- **One runtime dependency** - `@cfworker/json-schema` (MIT, no transitive deps). Your MCP SDK is an optional peer, so you install only the major you use.
 
 ## Tech stack
 
@@ -141,10 +139,10 @@ test("search tool works", async ({ mcp }) => {
 
 ## Works with both SDK majors
 
-- **v1** (`@modelcontextprotocol/sdk`) servers connect over the SDK's `InMemoryTransport` linked pair - the 2025-era stateful lifecycle, the only one that SDK negotiates.
-- **v2** (`@modelcontextprotocol/server`) servers connect over the SDK's in-process `handler.fetch` route, held to the 2026-07-28 stateless lifecycle by default and able to run the 2025 era too - see [lifecycles](#lifecycles).
+- **v1** (`@modelcontextprotocol/sdk`) connects over the SDK's `InMemoryTransport` linked pair.
+- **v2** (`@modelcontextprotocol/server`) connects over the SDK's in-process `handler.fetch` route.
 
-You do not pick the transport. `mcpTest()` detects which SDK your server instance comes from and routes to the matching one; `mcp.kind` reports what it found (`'v1'` or `'v2'`). The same tests, matchers, and fixture work either way.
+You do not pick. `mcpTest()` detects which SDK your server came from and routes to the matching transport; `mcp.kind` reports what it found. The same tests, matchers, and fixture work either way - including against [external servers](#testing-an-external-server), which report `'external'`. Which protocol revision each lane speaks is covered under [lifecycles](#lifecycles).
 
 ## API
 
@@ -169,7 +167,7 @@ With `autoClose: false` you own the lifetime and call `mcp.close()` yourself. Ou
 
 | Member                         | Returns                                                  |
 | ------------------------------ | -------------------------------------------------------- |
-| `kind`                         | `'v1'` or `'v2'`                                         |
+| `kind`                         | `'v1'`, `'v2'`, or `'external'`                          |
 | `lifecycle`                    | the protocol revision this connection is held to, if any |
 | `client`                       | the underlying SDK client (escape hatch)                 |
 | `listTools()`                  | every tool, following pagination                         |
@@ -237,11 +235,11 @@ await expect(halfway).resolves.toMatchObject({
 });
 ```
 
-Each item is `{ method, params, at }`, where `at` is milliseconds since the collector was created. `waitFor(predicate, timeoutMs = 5000)` resolves with the first match - including one already collected - and rejects with a timeout error otherwise. Pending waiters are abandoned when the harness closes, so a timeout never surfaces against a later test.
+Each item is `{ method, params, at }`, where `at` is milliseconds since the collector was created. `waitFor(predicate, timeoutMs = 5000)` resolves with the first match - including one already collected - and abandons pending waiters on close, so a timeout never surfaces against a later test.
 
-A progress token is attached to a call only when you pass `onProgress` or a collector is listening, so an otherwise bare `callTool` leaves the request untouched and your server's no-token path stays testable. Progress params arrive as `{ progress, total?, message? }`: the SDK consumes the token before handing them over, so items from two _concurrent_ calls to the same tool cannot be told apart. Await one call at a time when you need to attribute them.
+A progress token is attached only when you pass `onProgress` or a collector is listening, so a bare `callTool` leaves the request untouched and your server's no-token path stays testable. Params arrive as `{ progress, total?, message? }`; the SDK consumes the token first, so items from two _concurrent_ calls to the same tool cannot be told apart - await one at a time when you need to attribute them.
 
-**v2 servers collect progress only.** Under the 2026-07-28 stateless lifecycle there is no persistent server instance to push `list_changed` from, and the server does not honour a subscription for it: opening `subscriptions/listen` for `notifications/tools/list_changed` succeeds but comes back with an empty honoured filter, and no notification arrives even when the tool list genuinely changes mid-session. This is a gap on the server side of the SDK rather than something the harness withholds, and it will be wired up once the SDK emits those notifications. v1 servers collect every notification the client receives.
+**v2 servers collect progress only.** The 2026-07-28 lifecycle is stateless, so there is no persistent server to push `list_changed` from, and the SDK's server side does not emit it - a `subscriptions/listen` for it succeeds but honours nothing. A gap upstream rather than one the harness withholds; it will be wired up when the SDK sends those notifications. v1 servers collect everything the client receives.
 
 ### Snapshot testing
 
@@ -305,28 +303,26 @@ const result = await mcp.callTool("summarize", { text: "a very long text" });
 expect(result).toHaveTextContent("summary: short");
 ```
 
-Register a double any time before the call that triggers it - the handlers read the registry at call time, not at connect. Decline and cancel are ordinary results, so `{ action: 'decline' }` exercises the path where the user says no.
+Register a double any time before the call that triggers it. Decline and cancel are ordinary results, so `{ action: 'decline' }` exercises the path where the user says no. Forget one and you get a named error rather than a hang: `the server requested sampling but no double is registered.`
 
-One interaction to be aware of if you also collect progress: on v2, the SDK's input-required driver reports each fulfilment round through the progress channel, so a call that uses a double emits an extra progress event (`Fulfilling input required by 'tools/call' (round 1)`) that no server sent. It reaches both `onProgress` and any `notifications('notifications/progress')` collector. Assert on the events you care about rather than on a bare count.
-
-If a server asks for something you have not registered, mcp-vitest says so by name rather than hanging: `the server requested sampling but no double is registered. Call harness.onSampling(...) before triggering it.`
-
-The mechanism differs by SDK major, and the difference is visible in one place. v1 uses the 2025 push model, so a missing double surfaces as a tool error. v2 uses the 2026 multi-round-trip flow, where the client answers locally and retries, so a missing double rejects the call directly:
+A missing double surfaces differently per SDK major, because the mechanisms differ - v1 pushes the request to the client, v2 answers it locally and retries:
 
 ```ts
-// v1
+// v1: comes back as a tool error
 expect(await mcp.callTool("summarize", { text: "x" })).toBeToolError(
-  /no double is registered/,
+  /no double/,
 );
-// v2
+// v2: rejects the call
 await expect(mcp.callTool("summarize", { text: "x" })).rejects.toThrow(
-  /no double is registered/,
+  /no double/,
 );
 ```
 
-> **On v2, doubles require the 2026-07-28 lifecycle**, which is the default. A v2 connection held to a 2025 revision has no channel for server-to-client requests at all, so `onSampling`/`onElicitation` throw immediately there instead of letting the call stall.
->
-> **Sampling is deprecated** as of the 2026-07-28 revision (SEP-2577), along with roots. Both keep working for at least a twelve-month window; elicitation is not deprecated.
+Three things worth knowing:
+
+- **Doubles need a connection that can carry server-initiated requests.** That is the default everywhere except a v2 or URL connection held to a 2025 revision, which has no such channel - registering there throws immediately rather than letting the call stall.
+- **Sampling and roots are deprecated** as of 2026-07-28 (SEP-2577), with at least a twelve-month window. Elicitation is not.
+- **On v2, a call that uses a double emits an extra progress event** the server never sent - the SDK reports each fulfilment round through the progress channel. It reaches `onProgress` and any progress collector, so assert on the events you care about rather than a bare count.
 
 ### Roots
 
@@ -369,7 +365,7 @@ test("lists prompts", async ({ mcp }) => {
 
 ### Lifecycles
 
-MCP revised its lifecycle in 2026-07-28: the 2025 revisions are stateful and let a server push requests to a client, while 2026-07-28 is stateless and carries those requests in-band instead. A server that claims to serve both should be tested on both, so `createMcpTest` can run every test once per revision.
+The 2025 revisions are stateful and let a server push requests to a client; 2026-07-28 is stateless and carries them in-band instead. A server claiming to serve both should be tested on both, so `createMcpTest` can run every test once per revision.
 
 ```ts
 const test = createMcpTest(() => createServer(), {
@@ -382,16 +378,16 @@ test("echo works on every lifecycle", async ({ mcp }) => {
 });
 ```
 
-That registers `echo works on every lifecycle [2025-11-25]` and `echo works on every lifecycle [2026-07-28]`, each with its own harness. `mcp.lifecycle` tells a test which revision it is running on.
+Each test is registered once per revision with the revision appended to its name, each with its own harness, and `mcp.lifecycle` tells a test which one it is on. For a single revision, `protocolVersion` is simpler than a one-element matrix.
 
-Two revisions are selectable, and that is a property of the SDK rather than a choice: pinning accepts modern revisions only, and the 2025 era is reachable only as "legacy", which lands on the newest 2025 revision. Earlier revisions such as `2025-06-18` cannot be pinned.
+| Lane  | `'2025-11-25'`                    | `'2026-07-28'`                      |
+| ----- | --------------------------------- | ----------------------------------- |
+| v1    | the only revision it negotiates   | throws - the v1 SDK cannot serve it |
+| v2    | legacy mode; no doubles available | default; full support               |
+| stdio | the only revision it negotiates   | throws - stdio is driven by v1      |
+| url   | legacy mode; no doubles available | pinned; otherwise auto-negotiated   |
 
-| Server | `'2025-11-25'`                    | `'2026-07-28'`                      |
-| ------ | --------------------------------- | ----------------------------------- |
-| v1     | the only revision it negotiates   | throws - the v1 SDK cannot serve it |
-| v2     | legacy mode; no doubles available | default; full support               |
-
-Two limits worth knowing. In `lifecycles` mode the returned value registers plain tests only: it is typed as `LifecycleMcpTest`, so `.skip`, `.only`, `.each`, and `.extend` are compile errors rather than runtime surprises. And for a single revision, `protocolVersion` on `mcpTest` or `createMcpTest` is simpler than a one-element matrix.
+Exactly two revisions are selectable, which is an SDK property rather than a choice: pinning accepts modern revisions only, and the 2025 era is reachable just as "legacy". `2025-06-18` cannot be pinned. In `lifecycles` mode the returned test is typed `LifecycleMcpTest` and registers plain tests only, so `.skip`, `.only`, `.each`, and `.extend` are compile errors rather than runtime surprises.
 
 ### Matchers
 
@@ -417,35 +413,25 @@ registerMatchers();
 
 ### Testing an external server
 
-Not every server can be imported. `mcpTest` also accepts a spawn spec or a URL, and everything else - matchers, collectors, doubles, snapshots - works exactly as it does in-process. Both report `mcp.kind === 'external'`.
-
-**A server you spawn**, over stdio:
+Not every server can be imported. `mcpTest` also takes a spawn spec or a URL, and everything else - matchers, collectors, doubles, snapshots - works exactly as in-process. Both report `mcp.kind === 'external'`.
 
 ```ts
+// spawn one over stdio; env and cwd are accepted too
 const mcp = await mcpTest({ command: "node", args: ["./dist/server.js"] });
 
-await expect(mcp).toHaveTool("search");
-expect(await mcp.callTool("search", { query: "foo" })).toHaveTextContent(
-  /results/,
-);
-```
-
-`env` and `cwd` are accepted too. The child process is terminated when the harness closes, which the fixture does for you.
-
-One thing worth knowing about `env`: the MCP SDK does not hand the child your full environment. It starts from a small allowlist (`HOME`, `LOGNAME`, `PATH`, `SHELL`, `TERM`, `USER`, and their platform equivalents) and merges whatever you pass on top. A server that reads, say, `API_KEY` from the ambient environment will not see it unless you pass it explicitly.
-
-**A server already running**, over Streamable HTTP:
-
-```ts
+// or reach one already running, over Streamable HTTP
 const mcp = await mcpTest({
   url: "https://example.com/mcp",
   headers: { authorization: "Bearer test-token" },
 });
 ```
 
-`headers` are merged into every request, which is the seam for auth-protected servers.
+The child process is terminated when the harness closes, which the fixture does for you. `headers` are merged into every request, which is the seam for auth-protected servers.
 
-Unlike the in-process v2 lane, a URL connection does **not** pin a protocol revision. The server is not yours and may implement any era, so negotiation probes and meets it where it is. Pass `protocolVersion` to hold it to one.
+Two things that surprise people:
+
+- **`env` does not extend your environment, it replaces most of it.** The SDK starts from a small allowlist (`HOME`, `LOGNAME`, `PATH`, `SHELL`, `TERM`, `USER`, and platform equivalents) and merges yours on top, so a server reading `API_KEY` from the ambient environment will not see it unless you pass it explicitly.
+- **A URL connection does not pin a protocol revision.** The server is not yours and may implement any era, so negotiation probes and meets it where it is. Pass `protocolVersion` to hold it to one.
 
 ### `serveHandler(handler)`
 
@@ -467,19 +453,13 @@ Resolves `'v1'` or `'v2'` for an SDK server object, or rejects with a message na
 
 ## Migrating from 0.2
 
-Everything from 0.2 keeps working. Two changes alter what your server sees, so they are worth a look if a suite starts behaving differently.
+Everything from 0.2 keeps working. Three changes alter what your server sees, so they are worth a look if a suite starts behaving differently.
 
-**v2 connections now negotiate 2026-07-28.** Through 0.2.1 the v2 lane negotiated `2025-11-25`, because the client's `versionNegotiation` defaults to `'legacy'` and nothing overrode it. The 2026 era is required for doubles to work at all - a 2025-era v2 connection has no channel for server-to-client requests. Progress collection was verified unaffected by the change. To get the old behavior:
-
-```ts
-const mcp = await mcpTest(() => createServer(), {
-  protocolVersion: "2025-11-25",
-});
-```
-
-**The test client now advertises `sampling`, `elicitation`, and `roots`.** Capabilities are declared at connect, long before a test body can register a double, so they are advertised unconditionally. If your server branches on the client's declared capabilities, it will now take its sampling or elicitation path where 0.2.1 made it take the fallback - and without a registered double that call fails with `the server requested sampling but no double is registered`. Register the double, or assert the fallback path against a server you construct without those branches.
-
-One type-level note for the rare case it applies: `SdkClientLike` gained a required `complete()` member, so a hand-written implementation of `SdkClientLike` or `RawConnection` needs that method added. Nothing else in the public surface changed shape.
+| Change                                                                                                                                                                                | Effect                                                                                                                                                             | If it bites                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| **v2 connections now negotiate 2026-07-28.** Through 0.2.1 the v2 lane silently ran `2025-11-25`, because `versionNegotiation` defaults to `'legacy'`.                                | The 2026 era is required for doubles to work at all. Progress collection was verified unaffected.                                                                  | `mcpTest(server, { protocolVersion: '2025-11-25' })` restores the old behavior.            |
+| **The client now advertises `sampling`, `elicitation`, and `roots`.** Capabilities are declared at connect, before a test body can register a double, so they go out unconditionally. | A server that branches on client capabilities now takes its sampling or elicitation path where 0.2.1 took the fallback, then fails with `no double is registered`. | Register the double, or assert the fallback against a server built without those branches. |
+| **`SdkClientLike` gained a required `complete()`.**                                                                                                                                   | Only affects a hand-written `SdkClientLike` or `RawConnection`.                                                                                                    | Add the method. Nothing else changed shape.                                                |
 
 ## Requirements
 
@@ -507,7 +487,7 @@ Licensed under the **MIT** license - see [LICENSE](LICENSE).
 
 <div align="center">
 
-If mcp-vitest saves you time, consider supporting its development. Sponsorship funds new features, faster fixes, and keeps the project independent.
+mcp-vitest is MIT licensed and free to use, always. If it earns a place in your test suite, sponsorship is welcome.
 
 <br />
 
