@@ -1,116 +1,116 @@
-import { describe, expect, test } from 'vitest'
-import { mcpTest } from '../src/index.js'
-import { createV1Server } from './servers/v1.js'
-import { createV2Server } from './servers/v2.js'
+import { describe, expect, test } from "vitest";
+import { mcpTest } from "../src/index.js";
+import { createV1Server } from "./servers/v1.js";
+import { createV2Server } from "./servers/v2.js";
 
-describe('doubles (v1 legacy mechanism)', () => {
-  test('sampling double answers a summarize call', async () => {
-    const mcp = await mcpTest(createV1Server())
+describe("doubles (v1 legacy mechanism)", () => {
+  test("sampling double answers a summarize call", async () => {
+    const mcp = await mcpTest(createV1Server());
     mcp.onSampling((req) => {
-      expect(req.maxTokens).toBe(50)
-      return { model: 'double', role: 'assistant', content: { type: 'text', text: 'short' } }
-    })
-    const result = await mcp.callTool('summarize', { text: 'a very long text' })
-    expect(result).toHaveTextContent('summary: short')
-  })
+      expect(req.maxTokens).toBe(50);
+      return { model: "double", role: "assistant", content: { type: "text", text: "short" } };
+    });
+    const result = await mcp.callTool("summarize", { text: "a very long text" });
+    expect(result).toHaveTextContent("summary: short");
+  });
 
-  test('elicitation double with constant result', async () => {
-    const mcp = await mcpTest(createV1Server())
-    mcp.onElicitation({ action: 'accept', content: { confirm: true } })
-    const result = await mcp.callTool('ask', { question: 'Proceed?' })
-    expect(result).toHaveTextContent('answer: {"confirm":true}')
-  })
+  test("elicitation double with constant result", async () => {
+    const mcp = await mcpTest(createV1Server());
+    mcp.onElicitation({ action: "accept", content: { confirm: true } });
+    const result = await mcp.callTool("ask", { question: "Proceed?" });
+    expect(result).toHaveTextContent('answer: {"confirm":true}');
+  });
 
-  test('roots double serves list-roots', async () => {
-    const mcp = await mcpTest(createV1Server())
-    mcp.onRoots([{ uri: 'file:///workspace' }])
-    const result = await mcp.callTool('list-roots')
-    expect(result).toHaveTextContent('roots: file:///workspace')
-  })
+  test("roots double serves list-roots", async () => {
+    const mcp = await mcpTest(createV1Server());
+    mcp.onRoots([{ uri: "file:///workspace" }]);
+    const result = await mcp.callTool("list-roots");
+    expect(result).toHaveTextContent("roots: file:///workspace");
+  });
 
-  test('a declined elicitation reaches the tool', async () => {
-    const mcp = await mcpTest(createV1Server())
-    mcp.onElicitation({ action: 'decline' })
-    const result = await mcp.callTool('ask', { question: 'Proceed?' })
-    expect(result).toHaveTextContent('declined')
-  })
+  test("a declined elicitation reaches the tool", async () => {
+    const mcp = await mcpTest(createV1Server());
+    mcp.onElicitation({ action: "decline" });
+    const result = await mcp.callTool("ask", { question: "Proceed?" });
+    expect(result).toHaveTextContent("declined");
+  });
 
-  test('unregistered double throws a helpful error', async () => {
-    const mcp = await mcpTest(createV1Server())
-    const result = await mcp.callTool('summarize', { text: 'x' })
+  test("unregistered double throws a helpful error", async () => {
+    const mcp = await mcpTest(createV1Server());
+    const result = await mcp.callTool("summarize", { text: "x" });
     // the server surfaces the client-side error as a tool error
-    expect(result).toBeToolError(/no double is registered/i)
-  })
-})
+    expect(result).toBeToolError(/no double is registered/i);
+  });
+});
 
 // Same observable contract, a completely different mechanism underneath: the
 // server answers with input_required and the client's driver retries the call.
-describe('doubles (v2 / 2026 lifecycle)', () => {
-  test('sampling double answers a summarize call', async () => {
-    const mcp = await mcpTest(() => createV2Server())
+describe("doubles (v2 / 2026 lifecycle)", () => {
+  test("sampling double answers a summarize call", async () => {
+    const mcp = await mcpTest(() => createV2Server());
     mcp.onSampling((req) => {
-      expect(req.maxTokens).toBe(50)
-      return { model: 'double', role: 'assistant', content: { type: 'text', text: 'short' } }
-    })
-    const result = await mcp.callTool('summarize', { text: 'a very long text' })
-    expect(result).toHaveTextContent('summary: short')
-  })
+      expect(req.maxTokens).toBe(50);
+      return { model: "double", role: "assistant", content: { type: "text", text: "short" } };
+    });
+    const result = await mcp.callTool("summarize", { text: "a very long text" });
+    expect(result).toHaveTextContent("summary: short");
+  });
 
-  test('elicitation double with constant result', async () => {
-    const mcp = await mcpTest(() => createV2Server())
-    mcp.onElicitation({ action: 'accept', content: { confirm: true } })
-    const result = await mcp.callTool('ask', { question: 'Proceed?' })
-    expect(result).toHaveTextContent('answer: {"confirm":true}')
-  })
+  test("elicitation double with constant result", async () => {
+    const mcp = await mcpTest(() => createV2Server());
+    mcp.onElicitation({ action: "accept", content: { confirm: true } });
+    const result = await mcp.callTool("ask", { question: "Proceed?" });
+    expect(result).toHaveTextContent('answer: {"confirm":true}');
+  });
 
-  test('a declined elicitation reaches the tool', async () => {
-    const mcp = await mcpTest(() => createV2Server())
-    mcp.onElicitation({ action: 'decline' })
-    const result = await mcp.callTool('ask', { question: 'Proceed?' })
-    expect(result).toHaveTextContent('declined')
-  })
+  test("a declined elicitation reaches the tool", async () => {
+    const mcp = await mcpTest(() => createV2Server());
+    mcp.onElicitation({ action: "decline" });
+    const result = await mcp.callTool("ask", { question: "Proceed?" });
+    expect(result).toHaveTextContent("declined");
+  });
 
   // Differs from v1 by mechanism: v2 invokes the double locally, so it rejects the
   // caller rather than returning a tool error.
-  test('unregistered double rejects the call', async () => {
-    const mcp = await mcpTest(() => createV2Server())
-    await expect(mcp.callTool('summarize', { text: 'x' })).rejects.toThrow(
+  test("unregistered double rejects the call", async () => {
+    const mcp = await mcpTest(() => createV2Server());
+    await expect(mcp.callTool("summarize", { text: "x" })).rejects.toThrow(
       /no double is registered/i,
-    )
-  })
+    );
+  });
 
-  test('roots doubles are refused on v2', async () => {
-    const mcp = await mcpTest(() => createV2Server())
-    expect(() => mcp.onRoots([{ uri: 'file:///workspace' }])).toThrow(
+  test("roots doubles are refused on v2", async () => {
+    const mcp = await mcpTest(() => createV2Server());
+    expect(() => mcp.onRoots([{ uri: "file:///workspace" }])).toThrow(
       /does not advertise the roots capability/,
-    )
-  })
+    );
+  });
 
   // The double firing is the proof, not the `lifecycle` field: MRTR exists only on
   // the 2026 era, so a deleted pin fails here.
-  test('the connection really runs the 2026 MRTR flow', async () => {
-    const mcp = await mcpTest(() => createV2Server())
-    let calls = 0
+  test("the connection really runs the 2026 MRTR flow", async () => {
+    const mcp = await mcpTest(() => createV2Server());
+    let calls = 0;
     mcp.onElicitation(() => {
-      calls++
-      return { action: 'accept', content: { confirm: true } }
-    })
-    const result = await mcp.callTool('ask', { question: 'Proceed?' })
-    expect(calls).toBe(1)
-    expect(result).toHaveTextContent('answer: {"confirm":true}')
-    expect(mcp.lifecycle).toBe('2026-07-28')
-  })
+      calls++;
+      return { action: "accept", content: { confirm: true } };
+    });
+    const result = await mcp.callTool("ask", { question: "Proceed?" });
+    expect(calls).toBe(1);
+    expect(result).toHaveTextContent('answer: {"confirm":true}');
+    expect(mcp.lifecycle).toBe("2026-07-28");
+  });
 
   // The SDK reports each fulfillment round through onprogress and the bus fans it
   // out, so these events originate in the client, not the server.
-  test('MRTR rounds surface as synthetic progress events', async () => {
-    const mcp = await mcpTest(() => createV2Server())
-    mcp.onElicitation({ action: 'accept', content: { confirm: true } })
-    const progress = mcp.notifications('notifications/progress')
-    const seen: Array<{ progress: number; message?: string }> = []
-    await mcp.callTool('ask', { question: 'Proceed?' }, { onProgress: (p) => seen.push(p) })
-    expect(seen.length).toBeGreaterThan(0)
-    expect(seen[0]?.message).toMatch(/input required/i)
-    expect(progress.items.length).toBe(seen.length)
-  })
-})
+  test("MRTR rounds surface as synthetic progress events", async () => {
+    const mcp = await mcpTest(() => createV2Server());
+    mcp.onElicitation({ action: "accept", content: { confirm: true } });
+    const progress = mcp.notifications("notifications/progress");
+    const seen: Array<{ progress: number; message?: string }> = [];
+    await mcp.callTool("ask", { question: "Proceed?" }, { onProgress: (p) => seen.push(p) });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen[0]?.message).toMatch(/input required/i);
+    expect(progress.items.length).toBe(seen.length);
+  });
+});

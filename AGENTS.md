@@ -13,7 +13,7 @@ Last updated: 2026-08-08
 | Language      | TypeScript strict, ESM only, Node `>=20`                                            |
 | Build         | tsdown (CLI flags, not a config file) + publint + attw                              |
 | Tests         | vitest, both SDK majors exercised side by side                                      |
-| Lint / format | Biome - single quotes, no semicolons, 100 columns                                   |
+| Lint / format | Biome - double quotes, semicolons, trailing commas, 100 columns                     |
 | Peers         | vitest (required); both MCP SDK majors (optional)                                   |
 | Runtime deps  | one: `@cfworker/json-schema` (MIT, no transitive deps), backs `toMatchOutputSchema` |
 

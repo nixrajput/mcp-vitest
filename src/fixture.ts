@@ -1,13 +1,13 @@
-import type { TestContext, TestOptions } from 'vitest'
-import { test as baseTest } from 'vitest'
-import { type McpHarness, mcpTest } from './harness.js'
-import type { McpLifecycle, McpServerInput, McpTestOptions } from './types.js'
+import type { TestContext, TestOptions } from "vitest";
+import { test as baseTest } from "vitest";
+import { type McpHarness, mcpTest } from "./harness.js";
+import type { McpLifecycle, McpServerInput, McpTestOptions } from "./types.js";
 
-type BaseMcpTest = ReturnType<typeof makeTest>
+type BaseMcpTest = ReturnType<typeof makeTest>;
 
 function makeTest(
   server: McpServerInput,
-  options: Omit<McpTestOptions, 'autoClose'>,
+  options: Omit<McpTestOptions, "autoClose">,
   lifecycle?: McpLifecycle,
 ) {
   return baseTest.extend<{ mcp: McpHarness }>({
@@ -17,16 +17,16 @@ function makeTest(
         ...options,
         protocolVersion: lifecycle ?? options.protocolVersion,
         autoClose: false,
-      })
-      await use(harness)
-      await harness.close()
+      });
+      await use(harness);
+      await harness.close();
     },
-  })
+  });
 }
 
-type McpTestOptionsNoAutoClose = Omit<McpTestOptions, 'autoClose'>
+type McpTestOptionsNoAutoClose = Omit<McpTestOptions, "autoClose">;
 
-type LifecycleTestFn = (ctx: TestContext & { mcp: McpHarness }) => unknown
+type LifecycleTestFn = (ctx: TestContext & { mcp: McpHarness }) => unknown;
 
 /**
  * Plain tests only: `.skip`/`.only`/`.each`/`.extend` are absent so misuse is a
@@ -34,39 +34,39 @@ type LifecycleTestFn = (ctx: TestContext & { mcp: McpHarness }) => unknown
  * `test(name, fn, { timeout })`, which vitest 4 removed.
  */
 export interface LifecycleMcpTest {
-  (name: string, fn: LifecycleTestFn, timeout?: number): void
-  (name: string, options: TestOptions, fn: LifecycleTestFn): void
+  (name: string, fn: LifecycleTestFn, timeout?: number): void;
+  (name: string, options: TestOptions, fn: LifecycleTestFn): void;
 }
 
 export function createMcpTest(
   server: McpServerInput,
   options?: McpTestOptionsNoAutoClose & { lifecycles?: undefined },
-): BaseMcpTest
+): BaseMcpTest;
 export function createMcpTest(
   server: McpServerInput,
   options: McpTestOptionsNoAutoClose & { lifecycles: McpLifecycle[] },
-): LifecycleMcpTest
+): LifecycleMcpTest;
 /** `autoClose` is absent because the fixture always owns the harness lifetime. */
 export function createMcpTest(
   server: McpServerInput,
   options: McpTestOptionsNoAutoClose & { lifecycles?: McpLifecycle[] } = {},
 ): BaseMcpTest | LifecycleMcpTest {
-  const { lifecycles, ...rest } = options
-  if (!lifecycles) return makeTest(server, rest)
+  const { lifecycles, ...rest } = options;
+  if (!lifecycles) return makeTest(server, rest);
   // An empty matrix would register unpinned tests that read as covering revisions.
   if (lifecycles.length === 0) {
     throw new Error(
-      'mcp-vitest: createMcpTest was given an empty `lifecycles` array. Pass at least ' +
-        'one revision, or omit the option entirely for a single auto-negotiated harness.',
-    )
+      "mcp-vitest: createMcpTest was given an empty `lifecycles` array. Pass at least " +
+        "one revision, or omit the option entirely for a single auto-negotiated harness.",
+    );
   }
 
-  const variants = lifecycles.map((lc) => ({ lc, t: makeTest(server, rest, lc) }))
+  const variants = lifecycles.map((lc) => ({ lc, t: makeTest(server, rest, lc) }));
   // Args after the name pass through untouched rather than restating vitest's overloads.
   const multi = (name: string, ...rest2: unknown[]) => {
     for (const { lc, t } of variants) {
-      ;(t as unknown as (n: string, ...a: unknown[]) => void)(`${name} [${lc}]`, ...rest2)
+      (t as unknown as (n: string, ...a: unknown[]) => void)(`${name} [${lc}]`, ...rest2);
     }
-  }
-  return multi as LifecycleMcpTest
+  };
+  return multi as LifecycleMcpTest;
 }
