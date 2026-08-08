@@ -1,6 +1,6 @@
 # AI Agent Guidelines
 
-Last updated: 2026-08-07
+Last updated: 2026-08-08
 
 ---
 
@@ -13,7 +13,7 @@ Last updated: 2026-08-07
 | Language      | TypeScript strict, ESM only, Node `>=20`                                            |
 | Build         | tsdown (CLI flags, not a config file) + publint + attw                              |
 | Tests         | vitest, both SDK majors exercised side by side                                      |
-| Lint / format | Biome - single quotes, no semicolons, 100 columns                                   |
+| Lint / format | Biome - double quotes, semicolons, trailing commas, 100 columns                     |
 | Peers         | vitest (required); both MCP SDK majors (optional)                                   |
 | Runtime deps  | one: `@cfworker/json-schema` (MIT, no transitive deps), backs `toMatchOutputSchema` |
 
@@ -27,6 +27,8 @@ src/
   connect/bus.ts shared notification bus + CallToolOptions -> SDK request options
   connect/v1.ts  InMemoryTransport linked pair (2025-era lifecycle)
   connect/v2.ts  createMcpHandler + handler.fetch, pinned to 2026-07-28
+  connect/external.ts  connectStdio() spawn + connectUrl() real HTTP
+  serve.ts       serveHandler() - fetch handler on an ephemeral local port
   doubles.ts     DoubleRegistry + sampling/elicitation/roots double types
   harness.ts     McpHarness + mcpTest()
   fixture.ts     createMcpTest() - vitest test.extend, plus the lifecycle matrix
@@ -39,6 +41,7 @@ test/
                  weather-strict/ask/summarize/list-roots, resource
                  demo://greeting, template demo://person/{name}, prompt greet
   servers/v2.ts  v2 fixture server - same surface minus list-roots
+  servers/stdio-server.mjs  runnable v1 stdio server, plain JS (spawned)
 ```
 
 The two fixture servers share one contract on purpose: every harness and matcher test runs against both, so a change that only works on one SDK major fails loudly. Two deliberate exceptions: `list-roots` is v1-only because roots is deprecated in the 2026 spec, and the interactive tools use different mechanisms per era - v1 pushes server-to-client requests, while v2 answers with `inputRequired()` and reads the reply from `ctx.mcpReq.inputResponses` on the client's retry.
@@ -52,7 +55,7 @@ The two fixture servers share one contract on purpose: every harness and matcher
 ### Conventions
 
 - Conventional Commits, imperative subject `<=` 50 chars, no trailing period, no `Co-Authored-By` or `Generated with` trailers.
-- Every PR bumps `package.json` version - CI gate `version bumped` enforces it.
+- Every PR that changes anything users receive bumps `package.json` version - CI gate `version bumped` enforces it. The gate waives itself when a PR touches only `.github`, `.claude`, `.githooks`, `scripts`, `bench`, or the governance docs; `README.md` is excluded from that waiver because it ships in the tarball.
 - The PR title becomes the squash commit message.
 - `main` is protected: PR required, squash-only merges.
 - The README documents **shipped features only** - no roadmap, no plans.

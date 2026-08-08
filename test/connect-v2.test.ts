@@ -1,41 +1,41 @@
-import { describe, expect, test } from 'vitest'
-import { connectV2 } from '../src/connect/v2.js'
-import { DoubleRegistry } from '../src/doubles.js'
-import { createV2Server } from './servers/v2.js'
+import { describe, expect, test } from "vitest";
+import { connectV2 } from "../src/connect/v2.js";
+import { DoubleRegistry } from "../src/doubles.js";
+import { createV2Server } from "./servers/v2.js";
 
-describe('connectV2', () => {
-  test('round-trips listTools and callTool via handler.fetch', async () => {
-    const { client, close } = await connectV2(() => createV2Server(), new DoubleRegistry())
+describe("connectV2", () => {
+  test("round-trips listTools and callTool via handler.fetch", async () => {
+    const { client, close } = await connectV2(() => createV2Server(), new DoubleRegistry());
     try {
-      const { tools } = await client.listTools()
+      const { tools } = await client.listTools();
       expect(tools.map((t) => t.name).sort()).toEqual([
-        'ask',
-        'boom',
-        'echo',
-        'slow',
-        'summarize',
-        'weather',
-        'weather-bad',
-        'weather-strict',
-      ])
+        "ask",
+        "boom",
+        "echo",
+        "slow",
+        "summarize",
+        "weather",
+        "weather-bad",
+        "weather-strict",
+      ]);
 
       const result = await client.callTool({
-        name: 'echo',
-        arguments: { message: 'hi' },
-      })
-      expect(result.content[0]).toMatchObject({ type: 'text', text: 'echo: hi' })
+        name: "echo",
+        arguments: { message: "hi" },
+      });
+      expect(result.content[0]).toMatchObject({ type: "text", text: "echo: hi" });
     } finally {
-      await close()
+      await close();
     }
-  })
+  });
 
-  test('supports async factories', async () => {
-    const { client, close } = await connectV2(async () => createV2Server(), new DoubleRegistry())
+  test("supports async factories", async () => {
+    const { client, close } = await connectV2(async () => createV2Server(), new DoubleRegistry());
     try {
-      const { tools } = await client.listTools()
-      expect(tools.length).toBeGreaterThan(0)
+      const { tools } = await client.listTools();
+      expect(tools.length).toBeGreaterThan(0);
     } finally {
-      await close()
+      await close();
     }
-  })
-})
+  });
+});

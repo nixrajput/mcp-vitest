@@ -27,11 +27,37 @@ jobs:
           base=$(git show "origin/${{ github.base_ref }}:package.json" | jq -r .version)
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
           echo "base=$base" >> "$GITHUB_OUTPUT"
+      # Deliberately NOT paths-ignore on the trigger: this job is a required check,
+      # so a skipped run leaves the PR pending forever. It always runs, and waives
+      # the requirement from inside when nothing that reaches users changed. The
+      # list is a denylist so a new path defaults to needing a bump; README.md is
+      # absent on purpose because it ships inside the tarball.
+      - name: Does this PR change anything users receive
+        id: scope
+        run: |
+          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          echo "changed files:"; printf '%s\n' "$changed" | sed 's/^/  /'
+          # Counted, not `grep -qv`: the inverted-match exit code varies between
+          # grep implementations, and a wrong answer here either blocks every PR
+          # or silently waives the gate. Arithmetic means the same thing anywhere.
+          total=$(printf '%s\n' "$changed" | grep -c . || true)
+          infra=$(printf '%s\n' "$changed" | grep -cE '^(\.github/|\.claude/|\.githooks/|scripts/|bench/|(AGENTS|CLAUDE|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\.md$)' || true)
+          echo "total=${total:-0} infra-only=${infra:-0}"
+          if [ "${total:-0}" -gt "${infra:-0}" ]; then
+            echo "ships=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ships=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Compare
         env:
           PR: ${{ steps.v.outputs.pr }}
           BASE: ${{ steps.v.outputs.base }}
+          SHIPS: ${{ steps.scope.outputs.ships }}
         run: |
+          if [ "$SHIPS" != "true" ]; then
+            echo "No shipping paths changed; version bump not required."
+            exit 0
+          fi
           echo "base=$BASE  pr=$PR"
           if [ "$PR" = "$BASE" ]; then
             echo "::error::package.json version not bumped (still $BASE). Bump it: patch for fixes, minor for features, major for breaking."

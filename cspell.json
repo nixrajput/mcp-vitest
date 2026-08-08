@@ -1,0 +1,36 @@
+{
+  "$schema": "https://raw.githubusercontent.com/streetsidesoftware/cspell/main/cspell.schema.json",
+  "version": "0.2",
+  "language": "en",
+  "words": [
+    "attw",
+    "Bundlephobia",
+    "cfworker",
+    "changesets",
+    "codecov",
+    "cwds",
+    "elicit",
+    "elicitation",
+    "esac",
+    "goreleaser",
+    "knip",
+    "lifecycles",
+    "mcp",
+    "modelcontextprotocol",
+    "nixrajput",
+    "publint",
+    "rolldown",
+    "scorecard",
+    "sarif",
+    "Streamable",
+    "tsdown",
+    "vitest"
+  ],
+  "ignorePaths": [
+    "node_modules/**",
+    "dist/**",
+    "coverage/**",
+    "package-lock.json",
+    "test/__snapshots__/**"
+  ]
+}

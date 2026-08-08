@@ -1,76 +1,71 @@
-import type { McpHarness } from './harness.js'
+import type { McpHarness } from "./harness.js";
 
-// Snapshots must not churn on key order or absent optionals. `_meta` is dropped
-// only from the entry itself: servers attach it there, while a nested _meta is
-// the user's own schema property and a real change worth catching.
+// `_meta` is dropped from the entry only; a nested one is the user's own schema
+// property and a real change worth catching.
 function normalize(value: unknown, dropMeta = false): unknown {
-  if (Array.isArray(value)) return value.map((v) => normalize(v, dropMeta))
-  if (value && typeof value === 'object') {
-    const out: Record<string, unknown> = {}
+  if (Array.isArray(value)) return value.map((v) => normalize(v, dropMeta));
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
     for (const key of Object.keys(value as object).sort()) {
-      if (dropMeta && key === '_meta') continue
-      const v = (value as Record<string, unknown>)[key]
-      if (v === undefined) continue
-      out[key] = normalize(v)
+      if (dropMeta && key === "_meta") continue;
+      const v = (value as Record<string, unknown>)[key];
+      if (v === undefined) continue;
+      out[key] = normalize(v);
     }
-    return out
+    return out;
   }
-  return value
+  return value;
 }
 
 function normalizeEntries(entries: unknown[]): unknown {
-  return entries.map((e) => normalize(e, true))
+  return entries.map((e) => normalize(e, true));
 }
 
-// A server that does not advertise a capability answers -32601 (or, on v1, an
-// assertCapability error); for a manifest "this server exposes none" is the
-// honest answer. Anything else is a real failure and must not be swallowed into
-// an empty manifest that snapshots green.
+// An unadvertised capability answers -32601; for a manifest, "exposes none" is
+// honest. Anything else must not be swallowed into a manifest that snapshots green.
 function isUnsupportedCapability(error: unknown): boolean {
-  if ((error as { code?: unknown })?.code === -32601) return true
-  const message = error instanceof Error ? error.message : String(error)
-  // Anchored on purpose: a substring match anywhere would treat a real failure
-  // like "backend does not support this query yet" as an absent capability.
+  if ((error as { code?: unknown })?.code === -32601) return true;
+  const message = error instanceof Error ? error.message : String(error);
+  // Anchored: a loose match would read "backend does not support X" as absent.
   return (
     /^(MCP error )?-32601\b/.test(message) ||
     /^Server does not support /.test(message) ||
     /^Method not found\b/i.test(message)
-  )
+  );
 }
 
 async function orEmpty<T>(list: Promise<T[]>): Promise<T[]> {
   try {
-    return await list
+    return await list;
   } catch (error) {
-    if (isUnsupportedCapability(error)) return []
-    throw error
+    if (isUnsupportedCapability(error)) return [];
+    throw error;
   }
 }
 
-// Code-unit order, not localeCompare: collation depends on the host's ICU data
-// and default locale, so a committed snapshot could churn on a different CI
-// image. This is also the order capabilitiesManifest uses, so the two agree.
+// Code-unit order, not localeCompare: collation varies by host ICU data and locale,
+// so a committed snapshot could churn on a different CI image.
 function byKey<T>(key: (item: T) => string) {
   return (a: T, b: T) => {
-    const x = key(a)
-    const y = key(b)
-    return x < y ? -1 : x > y ? 1 : 0
-  }
+    const x = key(a);
+    const y = key(b);
+    return x < y ? -1 : x > y ? 1 : 0;
+  };
 }
 
 export async function toolManifest(mcp: McpHarness): Promise<unknown> {
-  const tools = await orEmpty(mcp.listTools())
-  return normalizeEntries([...tools].sort(byKey((t) => t.name)))
+  const tools = await orEmpty(mcp.listTools());
+  return normalizeEntries([...tools].sort(byKey((t) => t.name)));
 }
 
 export async function resourceManifest(mcp: McpHarness): Promise<unknown> {
-  const resources = await orEmpty(mcp.listResources())
-  return normalizeEntries([...resources].sort(byKey((r) => r.uri)))
+  const resources = await orEmpty(mcp.listResources());
+  return normalizeEntries([...resources].sort(byKey((r) => r.uri)));
 }
 
 export async function promptManifest(mcp: McpHarness): Promise<unknown> {
-  const prompts = await orEmpty(mcp.listPrompts())
-  return normalizeEntries([...prompts].sort(byKey((p) => p.name)))
+  const prompts = await orEmpty(mcp.listPrompts());
+  return normalizeEntries([...prompts].sort(byKey((p) => p.name)));
 }
 
 export async function capabilitiesManifest(mcp: McpHarness): Promise<unknown> {
@@ -78,10 +73,10 @@ export async function capabilitiesManifest(mcp: McpHarness): Promise<unknown> {
     orEmpty(mcp.listTools()),
     orEmpty(mcp.listResources()),
     orEmpty(mcp.listPrompts()),
-  ])
+  ]);
   return {
     tools: tools.map((t) => t.name).sort(),
     resources: resources.map((r) => r.uri).sort(),
     prompts: prompts.map((p) => p.name).sort(),
-  }
+  };
 }
