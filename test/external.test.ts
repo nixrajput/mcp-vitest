@@ -1,3 +1,5 @@
+import { realpathSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'vitest'
 import { mcpTest } from '../src/index.js'
@@ -19,13 +21,22 @@ describe('serveHandler', () => {
     }
   })
 
-  test('streams response bodies', async () => {
+  // Asserts the body is genuinely streamed, not buffered and flushed at the end:
+  // the first chunk must reach the client before the second is even produced. A
+  // fully buffering adapter would pass a test that only checked the final text.
+  test('streams response bodies incrementally', async () => {
+    let releaseSecond: (() => void) | undefined
+    const secondQueued = new Promise<void>((r) => {
+      releaseSecond = r
+    })
     const { url, close } = await serveHandler({
       fetch: async () =>
         new Response(
           new ReadableStream({
-            start(c) {
+            async start(c) {
               c.enqueue(new TextEncoder().encode('data: a\n\n'))
+              await secondQueued
+              c.enqueue(new TextEncoder().encode('data: b\n\n'))
               c.close()
             },
           }),
@@ -35,8 +46,20 @@ describe('serveHandler', () => {
     try {
       const res = await fetch(url)
       expect(res.headers.get('content-type')).toBe('text/event-stream')
-      expect(await res.text()).toContain('data: a')
+      const reader = res.body?.getReader()
+      // Arrives while the server is still awaiting permission to send 'b'.
+      const first = await reader?.read()
+      expect(new TextDecoder().decode(first?.value)).toContain('data: a')
+      releaseSecond?.()
+      let rest = ''
+      while (true) {
+        const next = await reader?.read()
+        if (!next || next.done) break
+        rest += new TextDecoder().decode(next.value)
+      }
+      expect(rest).toContain('data: b')
     } finally {
+      releaseSecond?.()
       await close()
     }
   })
@@ -140,6 +163,21 @@ describe('stdio transport', () => {
     expect(await mcp.callTool('ask', { question: 'Proceed?' })).toHaveTextContent(
       'answer: {"confirm":true}',
     )
+  })
+
+  // env and cwd are documented options; without this they were only assumed to
+  // reach the child. The SDK merges env over a small allowlist rather than
+  // inheriting the parent's, which is exactly what this pins.
+  test('forwards env and cwd to the spawned child', async () => {
+    const mcp = await mcpTest({
+      command: 'node',
+      args: [STDIO_SERVER],
+      env: { MCP_VITEST_PROBE: 'forwarded', PATH: process.env.PATH ?? '' },
+      cwd: tmpdir(),
+    })
+    const result = await mcp.callTool('spawn-info')
+    expect(result).toHaveTextContent(/probe: forwarded/)
+    expect(result).toHaveTextContent(new RegExp(`cwd: ${realpathSync(tmpdir())}`))
   })
 
   test('an unspawnable command fails with a clear error', async () => {

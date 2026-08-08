@@ -45,4 +45,15 @@ server.registerResource(
   async (uri) => ({ contents: [{ uri: uri.href, text: 'hello' }] }),
 )
 
+// Reports the spawn environment back to the test, so the env and cwd options on
+// a stdio spec are covered rather than assumed to be forwarded.
+server.registerTool('spawn-info', { description: 'Reports env and cwd' }, async () => ({
+  content: [
+    {
+      type: 'text',
+      text: `probe: ${process.env.MCP_VITEST_PROBE ?? '(unset)'} cwd: ${process.cwd()}`,
+    },
+  ],
+}))
+
 await server.connect(new StdioServerTransport())
