@@ -2,7 +2,7 @@
 export const TOOL_META: unique symbol = Symbol("mcp-vitest.toolMeta");
 
 /** Wire identity, single-sourced; test/connect-v1.test.ts pins it to package.json. */
-export const CLIENT_INFO = { name: "mcp-vitest", version: "0.4.1" } as const;
+export const CLIENT_INFO = { name: "mcp-vitest", version: "0.4.2" } as const;
 
 export interface ToolCallMeta {
   toolName: string;
