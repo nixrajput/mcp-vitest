@@ -28,6 +28,8 @@ Closes #<!-- issue number -->
 - [ ] `npm run ts:check` — clean
 - [ ] `npm test` — all tests pass (both SDK majors)
 - [ ] `npm run build` — succeeds (tsdown + publint + attw)
-- [ ] `package.json` version bumped (required to merge)
+- [ ] `package.json` version bumped (required to merge) - and `CLIENT_INFO` in `src/types.ts` if so
 - [ ] Docs updated where applicable (README, inline comments)
+- [ ] Public API changed? Link the matching `mcp-vitest-docs` PR:
+- [ ] `SECURITY.md` supported-versions table still correct
 - [ ] No unrelated changes included in this PR

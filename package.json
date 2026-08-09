@@ -1,6 +1,6 @@
 {
   "name": "mcp-vitest",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Vitest-native testing for Model Context Protocol (MCP) servers - matchers, snapshots, interaction doubles, and real external servers, on both SDK majors.",
   "type": "module",
   "engines": {
@@ -72,11 +72,11 @@
     "vitest": "^4.1.10",
     "zod": "^4.4.3"
   },
+  "homepage": "https://mcp-vitest.nixrajput.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/nixrajput/mcp-vitest.git"
   },
-  "homepage": "https://github.com/nixrajput/mcp-vitest#readme",
   "bugs": "https://github.com/nixrajput/mcp-vitest/issues",
   "author": "Nikhil Rajput (https://github.com/nixrajput)",
   "license": "MIT",
