@@ -66,11 +66,20 @@ const client = new Client(
   { capabilities: { sampling: {}, elicitation: {}, roots: {} } },
 );
 
-client.setRequestHandler(CreateMessageRequestSchema, async (req) => mySampling(req.params));
-client.setRequestHandler(ElicitRequestSchema, async (req) => myElicitation(req.params));
-client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: myRoots }));
+client.setRequestHandler(CreateMessageRequestSchema, async (req) =>
+  mySampling(req.params),
+);
+client.setRequestHandler(ElicitRequestSchema, async (req) =>
+  myElicitation(req.params),
+);
+client.setRequestHandler(ListRootsRequestSchema, async () => ({
+  roots: myRoots,
+}));
 
-await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+await Promise.all([
+  server.connect(serverTransport),
+  client.connect(clientTransport),
+]);
 
 const { tools } = await client.listTools();
 if (!tools.some((t) => t.name === "search")) throw new Error("no search tool");
@@ -205,12 +214,12 @@ Migrating from an earlier version? See [the migration notes](https://mcp-vitest.
 
 ## Compared to
 
-| | SDK majors | Protocol revisions | Interaction doubles | Snapshots | Schema validation |
-| --- | --- | --- | --- | --- | --- |
-| **mcp-vitest** | v1 and v2, auto-detected | 2025-11-25 and 2026-07-28 | sampling, elicitation, roots | Normalized manifests | `toMatchOutputSchema` |
-| [vitest-mcp](https://www.npmjs.com/package/vitest-mcp) | v1 only, per its own peer range `>=1.10.0 <2` | Whatever v1 negotiates | No | No | No |
-| [MCP Inspector](https://github.com/modelcontextprotocol/inspector) | Interactive tool, not a test harness | - | - | - | - |
-| Hand-rolled | Whatever you write twice | Whatever you pin | Whatever you wire | Yours to normalize | Yours to write |
+|                                                                    | SDK majors                                    | Protocol revisions        | Interaction doubles          | Snapshots            | Schema validation     |
+| ------------------------------------------------------------------ | --------------------------------------------- | ------------------------- | ---------------------------- | -------------------- | --------------------- |
+| **mcp-vitest**                                                     | v1 and v2, auto-detected                      | 2025-11-25 and 2026-07-28 | sampling, elicitation, roots | Normalized manifests | `toMatchOutputSchema` |
+| [vitest-mcp](https://www.npmjs.com/package/vitest-mcp)             | v1 only, per its own peer range `>=1.10.0 <2` | Whatever v1 negotiates    | No                           | No                   | No                    |
+| [MCP Inspector](https://github.com/modelcontextprotocol/inspector) | Interactive tool, not a test harness          | -                         | -                            | -                    | -                     |
+| Hand-rolled                                                        | Whatever you write twice                      | Whatever you pin          | Whatever you wire            | Yours to normalize   | Yours to write        |
 
 `vitest-mcp` arrived in August 2026 and covers the same idea for the v1 SDK; if that is all you need, it is smaller. The differences above are the reasons this exists: two SDK majors over two different transports, two protocol eras, and the interaction doubles that let a test answer what a server asks it.
 
