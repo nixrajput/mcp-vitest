@@ -1,11 +1,14 @@
 <div align="center">
 
+<img src="https://raw.githubusercontent.com/nixrajput/mcp-vitest/main/assets/logo.svg" width="76" alt="mcp-vitest">
+
 # mcp-vitest
 
-Vitest-native testing for **Model Context Protocol** servers - matchers, snapshots, interaction doubles, and real external servers, on both SDK majors.
+<em>Test your MCP server the way you test everything else.</em>
 
 <br />
 
+[![CI](https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml/badge.svg)][ci]
 [![npm](https://img.shields.io/npm/v/mcp-vitest?color=159F7C)][npm]
 [![Stars](https://img.shields.io/github/stars/nixrajput/mcp-vitest?color=159F7C)][repo]
 [![Contributors](https://img.shields.io/github/contributors/nixrajput/mcp-vitest?color=159F7C)][contributors]
@@ -13,6 +16,15 @@ Vitest-native testing for **Model Context Protocol** servers - matchers, snapsho
 [![Last commit](https://img.shields.io/github/last-commit/nixrajput/mcp-vitest?label=last%20commit)][repo]
 [![Issues](https://img.shields.io/github/issues/nixrajput/mcp-vitest?label=issues)][issues]
 [![PRs](https://img.shields.io/github/issues-pr/nixrajput/mcp-vitest?label=PRs)][pulls]
+
+<strong>In-process &middot; both SDK majors &middot; both protocol revisions &middot; seven typed matchers &middot; one runtime dependency</strong><br>
+<sub>No benchmark numbers here - a test harness is judged on coverage, not speed. What is checkable: <strong>117 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
+
+<br />
+
+**[Documentation][docs]** &middot; [Getting started][docs-start] &middot; [API reference][docs-api] &middot; [Lifecycles][docs-lifecycles] &middot; [llms.txt][llms]
+
+<sub><b>AI agents / LLMs:</b> the documentation is machine-readable at <a href="https://mcp-vitest.nixrajput.com/llms.txt"><code>llms.txt</code></a>, or as one blob at <a href="https://mcp-vitest.nixrajput.com/llms-full.txt"><code>llms-full.txt</code></a>.</sub>
 
 </div>
 
@@ -22,6 +34,7 @@ Vitest-native testing for **Model Context Protocol** servers - matchers, snapsho
 
 - [mcp-vitest](#mcp-vitest)
   - [Contents](#contents)
+  - [Before and after](#before-and-after)
   - [Overview](#overview)
   - [Features](#features)
   - [Tech stack](#tech-stack)
@@ -31,12 +44,51 @@ Vitest-native testing for **Model Context Protocol** servers - matchers, snapsho
     - [Quickstart](#quickstart)
   - [Works with both SDK majors](#works-with-both-sdk-majors)
   - [API](#api)
+  - [Is this for you](#is-this-for-you)
+  - [Compared to](#compared-to)
+  - [FAQ](#faq)
   - [Requirements](#requirements)
   - [Contributing](#contributing)
   - [Contributors](#contributors)
   - [License](#license)
   - [Support the project](#support-the-project)
   - [Connect](#connect)
+
+## Before and after
+
+Driving an MCP server from a test without a harness means wiring the SDK yourself. This is a trimmed version of what [`src/connect/v1.ts`](src/connect/v1.ts) does for you - a linked transport pair, a client with the right capabilities advertised before `initialize`, and a request handler per interaction type:
+
+```ts
+const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+
+const client = new Client(
+  { name: "my-test", version: "1.0.0" },
+  { capabilities: { sampling: {}, elicitation: {}, roots: {} } },
+);
+
+client.setRequestHandler(CreateMessageRequestSchema, async (req) => mySampling(req.params));
+client.setRequestHandler(ElicitRequestSchema, async (req) => myElicitation(req.params));
+client.setRequestHandler(ListRootsRequestSchema, async () => ({ roots: myRoots }));
+
+await Promise.all([server.connect(serverTransport), client.connect(clientTransport)]);
+
+const { tools } = await client.listTools();
+if (!tools.some((t) => t.name === "search")) throw new Error("no search tool");
+```
+
+And that is only the v1 path. A v2 server does not use `InMemoryTransport` at all - it connects over the SDK's in-process `handler.fetch` route - so supporting both means writing it twice and keeping them in step.
+
+With the harness:
+
+```ts
+const test = createMcpTest(() => createServer());
+
+test("search tool works", async ({ mcp }) => {
+  await expect(mcp).toHaveTool("search");
+});
+```
+
+`mcpTest()` detects which SDK your server came from and routes to the matching transport. Capabilities are advertised before `initialize` because a server decides what to request during it, which is a detail that is easy to get wrong by hand and impossible to notice until a double never fires.
 
 ## Overview
 
@@ -134,6 +186,51 @@ The full reference lives at **[mcp-vitest.nixrajput.com/en/docs/api/mcp-test](ht
 
 Migrating from an earlier version? See [the migration notes](https://mcp-vitest.nixrajput.com/en/docs/migrating).
 
+## Is this for you
+
+**Good fit if you…**
+
+- maintain an MCP server and want tests that run in your existing vitest suite
+- need to assert on tools, resources, prompts and results without hand-rolling JSON-RPC
+- have to answer a server's sampling, elicitation or roots requests from a test
+- support both SDK majors, or are migrating between them
+- care which protocol revision your server actually negotiates
+
+**Skip it if you…**
+
+- want an interactive debugger rather than automated tests. [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is the right tool for poking at a server by hand.
+- are not on vitest. The matchers and fixture are vitest-native; nothing here ports to jest without rewriting.
+- only need to check that a process starts. A shell script is cheaper.
+- are on SDK v1 below 1.10, or need a CJS build. This is ESM only.
+
+## Compared to
+
+| | SDK majors | Protocol revisions | Interaction doubles | Snapshots | Schema validation |
+| --- | --- | --- | --- | --- | --- |
+| **mcp-vitest** | v1 and v2, auto-detected | 2025-11-25 and 2026-07-28 | sampling, elicitation, roots | Normalized manifests | `toMatchOutputSchema` |
+| [vitest-mcp](https://www.npmjs.com/package/vitest-mcp) | v1 only, per its own peer range `>=1.10.0 <2` | Whatever v1 negotiates | No | No | No |
+| [MCP Inspector](https://github.com/modelcontextprotocol/inspector) | Interactive tool, not a test harness | - | - | - | - |
+| Hand-rolled | Whatever you write twice | Whatever you pin | Whatever you wire | Yours to normalize | Yours to write |
+
+`vitest-mcp` arrived in August 2026 and covers the same idea for the v1 SDK; if that is all you need, it is smaller. The differences above are the reasons this exists: two SDK majors over two different transports, two protocol eras, and the interaction doubles that let a test answer what a server asks it.
+
+## FAQ
+
+**Does it spawn my server as a subprocess?**
+Not by default - that is the point. Your server runs in-process, driven by a real SDK `Client` over the SDK's own in-process transport, so there are no ports to pick and no teardown races. When a server cannot be imported, the same harness drives it [over stdio or a URL][docs-external] instead, and everything above works unchanged.
+
+**Is the protocol reimplemented?**
+No. Both lanes use the SDK's own client and transports, so what your tests exercise is what a real client would. That is also why the two lanes are tested separately: they genuinely connect differently.
+
+**Which protocol revision am I testing?**
+Whichever your lane negotiates, and it is reported rather than assumed. SDK v1 tops out at 2025-11-25; the v2 lane pins 2026-07-28. Asking a v1 server for the 2026 lifecycle fails with an explanation instead of silently testing the older era. See [lifecycles][docs-lifecycles].
+
+**Why is there a runtime dependency at all?**
+`toMatchOutputSchema` needs a validator, and v1 emits draft-07 while v2 emits 2020-12. `@cfworker/json-schema` is MIT with no transitive dependencies, and v1 users pay nothing extra because the MCP SDK already depends on it. Approximating validation in a testing tool would be worse than the dependency.
+
+**Can I use the raw SDK client?**
+Yes. The harness exposes it as an escape hatch, so anything not covered by a matcher is still reachable.
+
 ## Requirements
 
 - Node.js `>=20`
@@ -191,6 +288,13 @@ mcp-vitest is MIT licensed and free to use, always. If it earns a place in your 
 
 </div>
 
+[ci]: https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml
+[docs]: https://mcp-vitest.nixrajput.com
+[llms]: https://mcp-vitest.nixrajput.com/llms.txt
+[docs-start]: https://mcp-vitest.nixrajput.com/en/docs/getting-started
+[docs-api]: https://mcp-vitest.nixrajput.com/en/docs/api/mcp-test
+[docs-lifecycles]: https://mcp-vitest.nixrajput.com/en/docs/api/lifecycles
+[docs-external]: https://mcp-vitest.nixrajput.com/en/docs/api/external-servers
 [npm]: https://www.npmjs.com/package/mcp-vitest
 [repo]: https://github.com/nixrajput/mcp-vitest
 [issues]: https://github.com/nixrajput/mcp-vitest/issues
