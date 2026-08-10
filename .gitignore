@@ -10,3 +10,6 @@ coverage/
 
 # subagent-driven-development scratch
 .superpowers/
+
+# Playwright MCP scratch output (snapshots, console logs)
+.playwright-mcp/
