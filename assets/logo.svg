@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 32 32">
+  <title>mcp-vitest</title>
+  <rect width="32" height="32" rx="7" fill="#141118" />
+  <!-- A protocol round trip, which is what the harness drives: the request goes out
+       (amber), the response comes back (violet). Deliberately not a checkmark, and never
+       an X, which reads as a failed test. Same mark as the docs site. -->
+  <path d="M8 12.5 H21 M17 8.5 L21 12.5 L17 16.5" fill="none" stroke="#f0a868" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M24 21.5 H11 M15 17.5 L11 21.5 L15 25.5" fill="none" stroke="#9b8cff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" />
+</svg>
