@@ -13,3 +13,16 @@ coverage/
 
 # Playwright MCP scratch output (snapshots, console logs)
 .playwright-mcp/
+# Secrets: every env variant, keys and certificates. A plain .env was not covered before, and it is
+# the file most likely to hold a real token.
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cert
+secrets/
