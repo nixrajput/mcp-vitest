@@ -18,7 +18,7 @@
 [![PRs](https://img.shields.io/github/issues-pr/nixrajput/mcp-vitest?label=PRs)][pulls]
 
 <strong>In-process &middot; both SDK majors &middot; both protocol revisions &middot; seven typed matchers &middot; one runtime dependency</strong><br>
-<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means over 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>120 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
+<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means across 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>120 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
 
 <br />
 
@@ -101,7 +101,7 @@ test("search tool works", async ({ mcp }) => {
 
 Testing an MCP server usually means spawning a subprocess, picking a port, or hand-rolling JSON-RPC frames. By default mcp-vitest does none of that: your server runs **in-process**, driven by a real SDK `Client` over the SDK's own in-process transport, and you get a small harness plus typed matchers on top. When a server cannot be imported, the same harness drives it over stdio or a URL instead. The protocol is never reimplemented, so what your tests exercise is what a real client would.
 
-```
+```text
    your test ──▶ mcp.callTool() ──▶ real SDK Client ──┬─▶ v1: InMemoryTransport pair
    expect(mcp) ─▶ seven matchers                      ├─▶ v2: handler.fetch route
                                                       └─▶ external: stdio or URL
