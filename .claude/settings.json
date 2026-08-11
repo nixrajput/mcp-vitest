@@ -30,8 +30,6 @@
       "Bash(git stash list *)",
       "Bash(npm *)",
       "Bash(npx *)",
-      "Bash(curl *localhost*)",
-      "Bash(curl *127.0.0.1*)",
       "mcp__ide__*"
     ],
     "deny": [
@@ -50,7 +48,21 @@
       "Read(/**/.env)",
       "Read(/**/.env.*)",
       "Edit(/**/.env)",
-      "Edit(/**/.env.*)"
+      "Edit(/**/.env.*)",
+      "Read(./**/*.p12)",
+      "Read(./**/*.pfx)",
+      "Read(./**/*.cert)",
+      "Edit(./**/*.p12)",
+      "Edit(./**/*.pfx)",
+      "Edit(./**/*.cert)",
+      "Read(/**/*.p12)",
+      "Read(/**/*.pfx)",
+      "Read(/**/*.cert)",
+      "Edit(/**/*.p12)",
+      "Edit(/**/*.pfx)",
+      "Edit(/**/*.cert)",
+      "Read(./secrets/**)",
+      "Edit(./secrets/**)"
     ],
     "ask": [
       "Bash(rm *)",
