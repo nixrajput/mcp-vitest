@@ -18,11 +18,11 @@
 [![PRs](https://img.shields.io/github/issues-pr/nixrajput/mcp-vitest?label=PRs)][pulls]
 
 <strong>In-process &middot; both SDK majors &middot; both protocol revisions &middot; seven typed matchers &middot; one runtime dependency</strong><br>
-<sub>No benchmark numbers here - a test harness is judged on coverage, not speed. What is checkable: <strong>117 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
+<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means over 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>120 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
 
 <br />
 
-**[Documentation][docs]** &middot; [Getting started][docs-start] &middot; [API reference][docs-api] &middot; [Lifecycles][docs-lifecycles] &middot; [llms.txt][llms]
+**[Documentation][docs]** &middot; [Getting started][docs-start] &middot; [API reference][docs-api] &middot; [Lifecycles][docs-lifecycles]
 
 <sub><b>AI agents / LLMs:</b> the documentation is machine-readable at <a href="https://mcp-vitest.nixrajput.com/llms.txt"><code>llms.txt</code></a>, or as one blob at <a href="https://mcp-vitest.nixrajput.com/llms-full.txt"><code>llms-full.txt</code></a>.</sub>
 
@@ -37,7 +37,6 @@
   - [Before and after](#before-and-after)
   - [Overview](#overview)
   - [Features](#features)
-  - [Tech stack](#tech-stack)
   - [Getting started](#getting-started)
     - [Prerequisites](#prerequisites)
     - [Install](#install)
@@ -47,7 +46,6 @@
   - [Is this for you](#is-this-for-you)
   - [Compared to](#compared-to)
   - [FAQ](#faq)
-  - [Requirements](#requirements)
   - [Contributing](#contributing)
   - [Contributors](#contributors)
   - [License](#license)
@@ -103,6 +101,12 @@ test("search tool works", async ({ mcp }) => {
 
 Testing an MCP server usually means spawning a subprocess, picking a port, or hand-rolling JSON-RPC frames. By default mcp-vitest does none of that: your server runs **in-process**, driven by a real SDK `Client` over the SDK's own in-process transport, and you get a small harness plus typed matchers on top. When a server cannot be imported, the same harness drives it over stdio or a URL instead. The protocol is never reimplemented, so what your tests exercise is what a real client would.
 
+```
+   your test ──▶ mcp.callTool() ──▶ real SDK Client ──┬─▶ v1: InMemoryTransport pair
+   expect(mcp) ─▶ seven matchers                      ├─▶ v2: handler.fetch route
+                                                      └─▶ external: stdio or URL
+```
+
 ## Features
 
 - **In-process by default** - no ports, no spawn, no teardown races. Both SDK majors, detected automatically.
@@ -115,25 +119,14 @@ Testing an MCP server usually means spawning a subprocess, picking a port, or ha
 - **Real call ergonomics** - progress callbacks, `AbortSignal` cancellation, per-call timeouts, and a notification collector with `waitFor`.
 - **One runtime dependency** - `@cfworker/json-schema` (MIT, no transitive deps). Your MCP SDK is an optional peer, so you install only the major you use.
 
-## Tech stack
-
-| Area          | Choice                                                      |
-| ------------- | ----------------------------------------------------------- |
-| Language      | TypeScript (strict), ESM only                               |
-| Runtime       | Node.js `>=20`                                              |
-| Test runner   | vitest `>=3.2` (peer)                                       |
-| MCP SDK v1    | `@modelcontextprotocol/sdk` (optional peer)                 |
-| MCP SDK v2    | `@modelcontextprotocol/server` + `/client` (optional peers) |
-| Build         | tsdown, verified with publint + @arethetypeswrong/cli       |
-| Lint / format | Biome                                                       |
-
 ## Getting started
 
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) `>=20`
 - [vitest](https://vitest.dev/) `>=3.2` in your project
-- An MCP server built on either SDK major
+- An MCP server built on either SDK major - `@modelcontextprotocol/sdk` `>=1.10`, or `@modelcontextprotocol/server` + `/client` `^2.0`. Both are optional peers, so you install only the one you use.
+- ESM only, with no CJS build
 
 ### Install
 
@@ -226,10 +219,10 @@ Migrating from an earlier version? See [the migration notes](https://mcp-vitest.
 ## FAQ
 
 **Does it spawn my server as a subprocess?**
-Not by default - that is the point. Your server runs in-process, driven by a real SDK `Client` over the SDK's own in-process transport, so there are no ports to pick and no teardown races. When a server cannot be imported, the same harness drives it [over stdio or a URL][docs-external] instead, and everything above works unchanged.
+Not by default. When a server cannot be imported, the same harness drives it [over stdio or a URL][docs-external] instead, and everything else works unchanged.
 
 **Is the protocol reimplemented?**
-No. Both lanes use the SDK's own client and transports, so what your tests exercise is what a real client would. That is also why the two lanes are tested separately: they genuinely connect differently.
+No - both lanes use the SDK's own client and transports. That is also why the lanes are tested separately rather than assumed equivalent: they genuinely connect differently.
 
 **Which protocol revision am I testing?**
 Whichever your lane negotiates, and it is reported rather than assumed. SDK v1 tops out at 2025-11-25; the v2 lane pins 2026-07-28. Asking a v1 server for the 2026 lifecycle fails with an explanation instead of silently testing the older era. See [lifecycles][docs-lifecycles].
@@ -239,12 +232,6 @@ Whichever your lane negotiates, and it is reported rather than assumed. SDK v1 t
 
 **Can I use the raw SDK client?**
 Yes. The harness exposes it as an escape hatch, so anything not covered by a matcher is still reachable.
-
-## Requirements
-
-- Node.js `>=20`
-- vitest `>=3.2`
-- ESM only (no CJS build)
 
 ## Contributing
 
@@ -299,7 +286,6 @@ mcp-vitest is MIT licensed and free to use, always. If it earns a place in your 
 
 [ci]: https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml
 [docs]: https://mcp-vitest.nixrajput.com
-[llms]: https://mcp-vitest.nixrajput.com/llms.txt
 [docs-start]: https://mcp-vitest.nixrajput.com/en/docs/getting-started
 [docs-api]: https://mcp-vitest.nixrajput.com/en/docs/api/mcp-test
 [docs-lifecycles]: https://mcp-vitest.nixrajput.com/en/docs/api/lifecycles
