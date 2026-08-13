@@ -98,10 +98,11 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
     url: `http://127.0.0.1:${address.port}`,
     close: () => {
       closed ??= new Promise<void>((resolve, reject) => {
-        // close() alone waits for open connections, and an MCP transport holds a
-        // stream open indefinitely, so the callback would never fire.
-        server.closeAllConnections();
+        // close() first so nothing new is accepted, then destroy what is open: close() alone
+        // waits on live connections and an MCP transport holds a stream open indefinitely,
+        // so its callback would never fire. Reversing these leaves a window to connect.
         server.close((err) => (err ? reject(err) : resolve()));
+        server.closeAllConnections();
       });
       return closed;
     },

@@ -542,3 +542,44 @@ describe("auth on a lane that cannot send it", () => {
     ).rejects.toThrow(/only sent to a URL server/);
   });
 });
+
+describe("claim edge cases", () => {
+  test("an array-form audience matches on any member", async () => {
+    const aud = "https://api.example.com/mcp";
+    const as = await fakeAuthServer({ audience: aud });
+    try {
+      const info = await as.verifier.verifyAccessToken(
+        as.mintToken({ aud: ["https://other/mcp", aud] }),
+      );
+      expect(info.resource?.toString()).toBe("https://other/mcp");
+      await expect(
+        as.verifier.verifyAccessToken(as.mintToken({ aud: ["https://a/mcp", "https://b/mcp"] })),
+      ).rejects.toThrow(/audience/i);
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("a token with no issuer is refused, not merely one with a wrong issuer", async () => {
+    const as = await fakeAuthServer();
+    try {
+      await expect(as.verifier.verifyAccessToken(as.mintToken({ iss: undefined }))).rejects.toThrow(
+        /issuer/i,
+      );
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("a token expiring exactly now is refused", async () => {
+    const as = await fakeAuthServer();
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      await expect(as.verifier.verifyAccessToken(as.mintToken({ exp: now }))).rejects.toThrow(
+        /expired/i,
+      );
+    } finally {
+      await as.close();
+    }
+  });
+});

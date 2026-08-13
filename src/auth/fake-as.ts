@@ -146,24 +146,27 @@ export async function fakeAuthServer(options?: {
       if (typeof claims.exp !== "number") {
         throw new OAuthError(OAuthErrorCode.InvalidToken, "token has no expiry");
       }
-      if (claims.exp < now) {
+      // RFC 7519 puts exp as the moment on or after which the token must not be accepted.
+      if (claims.exp <= now) {
         throw new OAuthError(OAuthErrorCode.InvalidToken, "token expired");
       }
       if (typeof claims.nbf === "number" && claims.nbf > now) {
         throw new OAuthError(OAuthErrorCode.InvalidToken, "token is not yet valid");
       }
-      // Signature alone only proves this instance minted it. Checking the issuer is what makes
-      // a wrong-issuer token fail for the documented reason rather than by luck of a fresh keypair.
-      if (claims.iss !== undefined && claims.iss !== issuer) {
+      // Signature alone only proves this instance minted it. Requiring the issuer, rather than
+      // checking it when present, is what a real resource server does with a bearer token.
+      if (claims.iss !== issuer) {
         throw new OAuthError(
           OAuthErrorCode.InvalidToken,
-          `token issuer ${claims.iss} is not ${issuer}`,
+          `token issuer ${JSON.stringify(claims.iss)} is not ${issuer}`,
         );
       }
       const resource = audienceUrl(claims.aud);
       // MCP's confused-deputy defence lives here because the SDK has no hook for it: a real
       // resource server refuses a token minted for somewhere else, so the double must too.
-      if (options?.audience !== undefined && claims.aud !== options.audience) {
+      // JWT allows aud to be an array, and a match on any member is a match.
+      const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+      if (options?.audience !== undefined && !audiences.includes(options.audience)) {
         throw new OAuthError(
           OAuthErrorCode.InvalidToken,
           `token audience ${JSON.stringify(claims.aud)} is not ${options.audience}`,
