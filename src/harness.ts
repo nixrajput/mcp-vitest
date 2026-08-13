@@ -220,6 +220,13 @@ async function resolveInput(
   lifecycle?: McpLifecycle,
   auth?: McpTestOptions["auth"],
 ): Promise<{ kind: ServerKind; conn: RawConnection }> {
+  // Only the URL transport puts credentials on the wire. Staying silent here let a suite
+  // pass while sending no credential at all, which reads as "my auth works".
+  if (auth !== undefined && !isUrlServerSpec(input)) {
+    throw new Error(
+      "auth is only sent to a URL server; a stdio or in-process server receives no credential",
+    );
+  }
   // Routed by shape first: a spec object is not an SDK instance to detect.
   if (isStdioServerSpec(input)) {
     return { kind: "external", conn: await connectStdio(input, registry, lifecycle) };

@@ -5,6 +5,7 @@ import { expectAuthChallenge, fetchPrm, hostClientMetadata } from "../src/auth/i
 import { decodeJwt, generateAuthKeys, signJwt } from "../src/auth/jwt.js";
 import { mcpTest } from "../src/index.js";
 import { serveHandler } from "../src/serve.js";
+import { createV2Server } from "./servers/v2.js";
 import { createAuthedV2Handler } from "./servers/v2-authed.js";
 
 describe("jwt helpers", () => {
@@ -115,7 +116,7 @@ describe("fakeAuthServer", () => {
   test("its verifier rejects a token signed by a different instance", async () => {
     const [a, b] = [await fakeAuthServer(), await fakeAuthServer()];
     try {
-      await expect(a.verifier.verifyAccessToken(b.mintToken())).rejects.toThrow();
+      await expect(a.verifier.verifyAccessToken(b.mintToken())).rejects.toThrow(/signature/i);
     } finally {
       await a.close();
       await b.close();
@@ -125,7 +126,9 @@ describe("fakeAuthServer", () => {
   test("its verifier rejects an expired token", async () => {
     const as = await fakeAuthServer();
     try {
-      await expect(as.verifier.verifyAccessToken(as.mintToken({ exp: 1 }))).rejects.toThrow();
+      await expect(as.verifier.verifyAccessToken(as.mintToken({ exp: 1 }))).rejects.toThrow(
+        /expired/i,
+      );
     } finally {
       await as.close();
     }
@@ -249,7 +252,7 @@ describe("rejection cases", () => {
     try {
       await expect(
         mcpTest({ url: `${served.url}/mcp` }, { auth: { token: other.mintToken() } }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/HTTP 401/);
     } finally {
       await served.close();
       await as.close();
@@ -263,7 +266,7 @@ describe("rejection cases", () => {
     try {
       await expect(
         mcpTest({ url: `${served.url}/mcp` }, { auth: { token: as.mintToken({ exp: 1 }) } }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(/HTTP 401/);
     } finally {
       await served.close();
       await as.close();
@@ -421,5 +424,121 @@ describe("metadata honesty", () => {
     } finally {
       await as.close();
     }
+  });
+});
+
+describe("audience and issuer", () => {
+  test("a URL audience is reported as AuthInfo.resource", async () => {
+    const as = await fakeAuthServer();
+    try {
+      const info = await as.verifier.verifyAccessToken(
+        as.mintToken({ aud: "https://api.example.com/mcp" }),
+      );
+      expect(info.resource?.toString()).toBe("https://api.example.com/mcp");
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("a non-URL audience leaves resource unset", async () => {
+    const as = await fakeAuthServer();
+    try {
+      const info = await as.verifier.verifyAccessToken(as.mintToken({ aud: "some-client-id" }));
+      expect(info.resource).toBeUndefined();
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("with an audience configured, a token for another resource is refused", async () => {
+    const as = await fakeAuthServer({ audience: "https://api.example.com/mcp" });
+    try {
+      await expect(
+        as.verifier.verifyAccessToken(as.mintToken({ aud: "https://other.example/mcp" })),
+      ).rejects.toThrow(/audience/i);
+      await expect(as.verifier.verifyAccessToken(as.mintToken({}))).rejects.toThrow(/audience/i);
+      const ok = await as.verifier.verifyAccessToken(
+        as.mintToken({ aud: "https://api.example.com/mcp" }),
+      );
+      expect(ok.resource?.toString()).toBe("https://api.example.com/mcp");
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("without an audience configured, any audience is accepted", async () => {
+    const as = await fakeAuthServer();
+    try {
+      const info = await as.verifier.verifyAccessToken(as.mintToken({ aud: "https://any/mcp" }));
+      expect(info.token).toBeTypeOf("string");
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("a token claiming a foreign issuer is refused", async () => {
+    const as = await fakeAuthServer();
+    try {
+      await expect(
+        as.verifier.verifyAccessToken(as.mintToken({ iss: "https://evil.example" })),
+      ).rejects.toThrow(/issuer/i);
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("a not-yet-valid token is refused", async () => {
+    const as = await fakeAuthServer();
+    try {
+      const future = Math.floor(Date.now() / 1000) + 3600;
+      await expect(as.verifier.verifyAccessToken(as.mintToken({ nbf: future }))).rejects.toThrow(
+        /not yet valid/i,
+      );
+    } finally {
+      await as.close();
+    }
+  });
+});
+
+describe("issuerPath and teardown", () => {
+  test("the SDK discovers metadata for a path-scoped issuer", async () => {
+    const as = await fakeAuthServer({ issuerPath: "/tenant1" });
+    try {
+      expect(as.issuer.endsWith("/tenant1")).toBe(true);
+      const metadata = await discoverAuthorizationServerMetadata(as.issuer);
+      expect(metadata?.issuer).toBe(as.issuer);
+      expect(metadata?.token_endpoint).toBe(`${as.issuer}/token`);
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("close is idempotent, as a finally plus an afterEach both call it", async () => {
+    const as = await fakeAuthServer();
+    await as.close();
+    await expect(as.close()).resolves.toBeUndefined();
+  });
+});
+
+describe("credential handling", () => {
+  test("an invalid auth header does not put the credential in the error", async () => {
+    const secret = "sk-live-SECRET\r\nX-Injected: 1";
+    const attempt = mcpTest({ url: "http://127.0.0.1:1/mcp" }, { auth: { token: secret } });
+    await expect(attempt).rejects.toThrow(/invalid value/);
+    await expect(attempt).rejects.not.toThrow(/sk-live-SECRET/);
+  });
+});
+
+describe("auth on a lane that cannot send it", () => {
+  test("an in-process server rejects rather than connecting with no credential", async () => {
+    await expect(mcpTest(() => createV2Server(), { auth: { token: "unused" } })).rejects.toThrow(
+      /only sent to a URL server/,
+    );
+  });
+
+  test("a stdio spec rejects too", async () => {
+    await expect(
+      mcpTest({ command: "node", args: ["-e", ""] }, { auth: { token: "unused" } }),
+    ).rejects.toThrow(/only sent to a URL server/);
   });
 });

@@ -101,7 +101,15 @@ export async function connectUrl(
   let headers: Headers | undefined;
   if (spec.headers || authHeaders) {
     headers = new Headers(spec.headers);
-    for (const [k, v] of Object.entries(authHeaders ?? {})) headers.set(k, v);
+    for (const [k, v] of Object.entries(authHeaders ?? {})) {
+      try {
+        headers.set(k, v);
+      } catch {
+        // Headers.set quotes the offending value, which for Authorization is the credential
+        // itself, and a vitest failure report goes straight to CI logs.
+        throw new Error(`auth header ${k} has an invalid value (its content is not shown)`);
+      }
+    }
   }
 
   const transport = new StreamableHTTPClientTransport(new URL(spec.url), {
