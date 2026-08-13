@@ -2,7 +2,7 @@
 export const TOOL_META: unique symbol = Symbol("mcp-vitest.toolMeta");
 
 /** Wire identity, single-sourced; test/connect-v1.test.ts pins it to package.json. */
-export const CLIENT_INFO = { name: "mcp-vitest", version: "0.4.4" } as const;
+export const CLIENT_INFO = { name: "mcp-vitest", version: "0.5.0" } as const;
 
 export interface ToolCallMeta {
   toolName: string;
@@ -117,15 +117,20 @@ export function isUrlServerSpec(input: unknown): input is UrlServerSpec {
   return typeof url === "string" || url instanceof URL;
 }
 
+/** Any object: both SDK majors' server instances satisfy this, primitives do not. */
+type ServerLike = Record<string, unknown> | object;
+
 export type McpServerInput =
   | StdioServerSpec
   | UrlServerSpec
-  | unknown
-  | (() => unknown | Promise<unknown>);
+  | ServerLike
+  | (() => ServerLike | Promise<ServerLike>);
 
 export interface McpTestOptions {
   /** Auto-close via vitest onTestFinished when inside a test. Default true. */
   autoClose?: boolean;
   /** v1 can only be held to '2025-11-25', the single revision its SDK negotiates. */
   protocolVersion?: McpLifecycle;
+  /** Sent on every request by the URL transport. `token` becomes a Bearer header. */
+  auth?: { token: string } | { headers: Record<string, string> };
 }

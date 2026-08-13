@@ -1,6 +1,6 @@
 {
   "name": "mcp-vitest",
-  "version": "0.4.4",
+  "version": "0.5.0",
   "description": "Vitest-native testing for Model Context Protocol (MCP) servers - matchers, snapshots, interaction doubles, and real external servers, on both SDK majors.",
   "type": "module",
   "engines": {
@@ -24,13 +24,17 @@
     "./snapshot": {
       "types": "./dist/snapshot.d.ts",
       "default": "./dist/snapshot.js"
+    },
+    "./auth": {
+      "types": "./dist/auth.d.ts",
+      "default": "./dist/auth.js"
     }
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsdown src/index.ts src/matchers.ts src/setup.ts src/snapshot.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
+    "build": "tsdown --entry.index=src/index.ts --entry.matchers=src/matchers.ts --entry.setup=src/setup.ts --entry.snapshot=src/snapshot.ts --entry.auth=src/auth/index.ts --format esm --dts --no-fixed-extension && publint && attw --pack . --profile esm-only",
     "test": "vitest run",
     "bench": "vitest bench --run",
     "ts:check": "tsc --noEmit && node scripts/check-no-node-globals.mjs",

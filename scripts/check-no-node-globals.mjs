@@ -3,7 +3,10 @@
 // pulls it in regardless - hence typecheck with no Node types and ignore serve.ts.
 import { spawnSync } from "node:child_process";
 
-const ALLOWED = "src/serve.ts";
+// src/auth/* is the second deliberate exception - the fake authorization server
+// signs real tokens with node:crypto, and the mcp-vitest/auth subpath is what
+// keeps the default import free of Node builtins instead of this guard.
+const ALLOWED = (file) => file === "src/serve.ts" || file.startsWith("src/auth/");
 const FILE_ERROR = /^(?<file>\S+?)\(\d+,\d+\): error /;
 
 const { status, stdout, stderr } = spawnSync(
@@ -17,12 +20,10 @@ const fileErrors = lines.flatMap((line) => {
   const file = FILE_ERROR.exec(line)?.groups?.file;
   return file ? [{ file, line }] : [];
 });
-// Exact filename, not startsWith: a prefix match would silently allowlist a
-// hypothetical src/serve.tsx alongside the one file that is meant to be exempt.
-const leaks = fileErrors.filter(({ file }) => file !== ALLOWED);
+const leaks = fileErrors.filter(({ file }) => !ALLOWED(file));
 
 if (leaks.length > 0) {
-  console.error(`Node globals leaked into src/ (only ${ALLOWED} may use them):\n`);
+  console.error("Node globals leaked into src/ (only src/serve.ts and src/auth/* may use them):\n");
   for (const { line } of leaks) console.error(`  ${line}`);
   process.exit(1);
 }
@@ -37,4 +38,4 @@ if (unparsed.length > 0 || (status !== 0 && fileErrors.length === 0)) {
   process.exit(1);
 }
 
-console.log(`no-node guard: clean (${ALLOWED} is the only Node-dependent file)`);
+console.log("no-node guard: clean (src/serve.ts and src/auth/* are the only Node-dependent files)");

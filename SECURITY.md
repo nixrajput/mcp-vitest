@@ -6,7 +6,8 @@ Only the latest release on the `main` branch receives security fixes.
 
 | Version         | Supported |
 | --------------- | --------- |
-| 0.4.x (current) | Yes       |
+| 0.5.x (current) | Yes       |
+| 0.4.x           | No        |
 | 0.3.x           | No        |
 | 0.2.x           | No        |
 | 0.1.x           | No        |

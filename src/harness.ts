@@ -59,6 +59,9 @@ async function collectPages<Page extends { nextCursor?: string }, Item>(
 
 export class McpHarness {
   // Required, not defaulted: a default registry is one the connection never reads.
+  // RawConnection already broke once at 0.4 (supports became required) for this
+  // undocumented audience; @internal is what lets it break again without a major.
+  /** @internal */
   constructor(
     readonly kind: ServerKind,
     private readonly conn: RawConnection,
@@ -215,13 +218,14 @@ async function resolveInput(
   input: McpServerInput,
   registry: DoubleRegistry,
   lifecycle?: McpLifecycle,
+  auth?: McpTestOptions["auth"],
 ): Promise<{ kind: ServerKind; conn: RawConnection }> {
   // Routed by shape first: a spec object is not an SDK instance to detect.
   if (isStdioServerSpec(input)) {
     return { kind: "external", conn: await connectStdio(input, registry, lifecycle) };
   }
   if (isUrlServerSpec(input)) {
-    return { kind: "external", conn: await connectUrl(input, registry, lifecycle) };
+    return { kind: "external", conn: await connectUrl(input, registry, lifecycle, auth) };
   }
   if (typeof input === "function") {
     const factory = input as () => unknown | Promise<unknown>;
@@ -245,7 +249,7 @@ export async function mcpTest(
   options: McpTestOptions = {},
 ): Promise<McpHarness> {
   const registry = new DoubleRegistry();
-  const { kind, conn } = await resolveInput(input, registry, options.protocolVersion);
+  const { kind, conn } = await resolveInput(input, registry, options.protocolVersion, options.auth);
   const harness = new McpHarness(kind, conn, registry);
   conn.onNotification((n) => {
     for (const c of harness.collectors) c.push(n.method, n.params);
