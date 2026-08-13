@@ -1,4 +1,4 @@
-import { createPublicKey, createVerify } from "node:crypto";
+import { createPublicKey, createVerify, randomUUID } from "node:crypto";
 import {
   type AuthInfo,
   OAuthError,
@@ -23,9 +23,13 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
   const publicKey = createPublicKey({ key: publicJwk, format: "jwk" });
   const prefix = options?.issuerPath ?? "";
 
+  // Codes are exchanged by a later task; kept here only so /authorize is honest about issuing them.
+  const authCodes = new Map<string, { expiresAt: number }>();
+
   let issuer = "";
   const metadataDoc = () => ({
     issuer,
+    authorization_endpoint: `${issuer}/authorize`,
     jwks_uri: `${issuer}/jwks.json`,
     token_endpoint: `${issuer}/token`,
     grant_types_supported: ["client_credentials", "authorization_code"],
@@ -45,6 +49,24 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
       }
       if (pathname === `${prefix}/jwks.json`) {
         return Response.json({ keys: [publicJwk] });
+      }
+      if (req.method === "GET" && pathname === `${prefix}/authorize`) {
+        const { searchParams } = new URL(req.url);
+        const redirectUri = searchParams.get("redirect_uri");
+        const state = searchParams.get("state");
+        if (!redirectUri || !state) {
+          const err = new OAuthError(
+            OAuthErrorCode.InvalidRequest,
+            "redirect_uri and state are required",
+          );
+          return Response.json(err.toResponseObject(), { status: 400 });
+        }
+        const code = randomUUID();
+        authCodes.set(code, { expiresAt: Date.now() + 60_000 });
+        const redirect = new URL(redirectUri);
+        redirect.searchParams.set("code", code);
+        redirect.searchParams.set("state", state);
+        return Response.redirect(redirect, 302);
       }
       if (req.method === "POST" && pathname === `${prefix}/token`) {
         const params = new URLSearchParams(await req.text());

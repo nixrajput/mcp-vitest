@@ -1,3 +1,4 @@
+import { discoverAuthorizationServerMetadata } from "@modelcontextprotocol/client";
 import { describe, expect, test } from "vitest";
 import { fakeAuthServer } from "../src/auth/fake-as.js";
 import { decodeJwt, generateAuthKeys, signJwt } from "../src/auth/jwt.js";
@@ -93,6 +94,38 @@ describe("fakeAuthServer", () => {
     const as = await fakeAuthServer();
     try {
       await expect(as.verifier.verifyAccessToken(as.mintToken({ exp: 1 }))).rejects.toThrow();
+    } finally {
+      await as.close();
+    }
+  });
+
+  // The SDK's own OAuthMetadataSchema requires authorization_endpoint; a metadata
+  // document that only satisfies our own tests can still fail real discovery.
+  test("its metadata document is accepted by the SDK's discovery function", async () => {
+    const as = await fakeAuthServer();
+    try {
+      const metadata = await discoverAuthorizationServerMetadata(as.issuer);
+      expect(metadata).toMatchObject({
+        issuer: as.issuer,
+        authorization_endpoint: `${as.issuer}/authorize`,
+      });
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("its authorize endpoint redirects with a code and the echoed state", async () => {
+    const as = await fakeAuthServer();
+    try {
+      const authorizeUrl = new URL(`${as.issuer}/authorize`);
+      authorizeUrl.searchParams.set("redirect_uri", "https://client.example/cb");
+      authorizeUrl.searchParams.set("state", "xyz");
+      const res = await fetch(authorizeUrl, { redirect: "manual" });
+      expect(res.status).toBe(302);
+      const location = new URL(res.headers.get("location") ?? "");
+      expect(location.origin + location.pathname).toBe("https://client.example/cb");
+      expect(location.searchParams.get("state")).toBe("xyz");
+      expect(location.searchParams.get("code")).toBeTruthy();
     } finally {
       await as.close();
     }
