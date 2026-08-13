@@ -1,6 +1,7 @@
 import type { DoubleRegistry, ElicitationRequest, SamplingRequest } from "../doubles.js";
 import type {
   McpLifecycle,
+  McpTestOptions,
   McpToolResult,
   RawConnection,
   SdkClientLike,
@@ -85,11 +86,21 @@ export async function connectUrl(
   spec: UrlServerSpec,
   registry: DoubleRegistry,
   lifecycle?: McpLifecycle,
+  auth?: McpTestOptions["auth"],
 ): Promise<RawConnection> {
   const { Client, StreamableHTTPClientTransport } = await import("@modelcontextprotocol/client");
 
+  // `auth` wins on a key collision with the spec's own `headers`, so it must spread last.
+  const authHeaders =
+    auth === undefined
+      ? undefined
+      : "token" in auth
+        ? { Authorization: `Bearer ${auth.token}` }
+        : auth.headers;
+  const headers = spec.headers || authHeaders ? { ...spec.headers, ...authHeaders } : undefined;
+
   const transport = new StreamableHTTPClientTransport(new URL(spec.url), {
-    requestInit: spec.headers ? { headers: spec.headers } : undefined,
+    requestInit: headers ? { headers } : undefined,
   });
   const client = new Client(CLIENT_INFO, {
     capabilities: { sampling: {}, elicitation: {} },

@@ -2,6 +2,9 @@ import { discoverAuthorizationServerMetadata } from "@modelcontextprotocol/clien
 import { describe, expect, test } from "vitest";
 import { fakeAuthServer } from "../src/auth/fake-as.js";
 import { decodeJwt, generateAuthKeys, signJwt } from "../src/auth/jwt.js";
+import { mcpTest } from "../src/index.js";
+import { serveHandler } from "../src/serve.js";
+import { createAuthedV2Handler } from "./servers/v2-authed.js";
 
 describe("jwt helpers", () => {
   test("signs and decodes an RS256 JWT", () => {
@@ -127,6 +130,57 @@ describe("fakeAuthServer", () => {
       expect(location.searchParams.get("state")).toBe("xyz");
       expect(location.searchParams.get("code")).toBeTruthy();
     } finally {
+      await as.close();
+    }
+  });
+});
+
+describe("authenticated server", () => {
+  test("a valid token connects and calls tools", async () => {
+    const as = await fakeAuthServer();
+    const served = await serveHandler(
+      createAuthedV2Handler({ verifier: as.verifier, issuer: as.issuer }),
+    );
+    try {
+      const mcp = await mcpTest(
+        { url: `${served.url}/mcp` },
+        { auth: { token: as.mintToken({ aud: `${served.url}/mcp` }) } },
+      );
+      await expect(mcp).toHaveTool("echo");
+      const r = await mcp.callTool("echo", { message: "hi" });
+      expect(r.content[0].text).toBe("echo: hi");
+    } finally {
+      await served.close();
+      await as.close();
+    }
+  });
+
+  test("no token is refused", async () => {
+    const as = await fakeAuthServer();
+    const served = await serveHandler(
+      createAuthedV2Handler({ verifier: as.verifier, issuer: as.issuer }),
+    );
+    try {
+      await expect(mcpTest({ url: `${served.url}/mcp` })).rejects.toThrow(/401|unauthor/i);
+    } finally {
+      await served.close();
+      await as.close();
+    }
+  });
+
+  test("auth.headers is merged verbatim", async () => {
+    const as = await fakeAuthServer();
+    const served = await serveHandler(
+      createAuthedV2Handler({ verifier: as.verifier, issuer: as.issuer }),
+    );
+    try {
+      const mcp = await mcpTest(
+        { url: `${served.url}/mcp` },
+        { auth: { headers: { authorization: `Bearer ${as.mintToken()}` } } },
+      );
+      await expect(mcp).toHaveTool("echo");
+    } finally {
+      await served.close();
       await as.close();
     }
   });

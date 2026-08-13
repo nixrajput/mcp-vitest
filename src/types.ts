@@ -128,4 +128,6 @@ export interface McpTestOptions {
   autoClose?: boolean;
   /** v1 can only be held to '2025-11-25', the single revision its SDK negotiates. */
   protocolVersion?: McpLifecycle;
+  /** Sent on every request by the URL transport. `token` becomes a Bearer header. */
+  auth?: { token: string } | { headers: Record<string, string> };
 }
