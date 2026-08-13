@@ -17,8 +17,10 @@ function normalize(value: unknown, dropMeta = false): unknown {
   return value;
 }
 
-function normalizeEntries(entries: unknown[]): unknown {
-  return entries.map((e) => normalize(e, true));
+// Generic on purpose: normalizing only sorts keys and drops `_meta`/undefined, so the entry
+// shape survives. Returning `unknown` forced a cast on any consumer asserting on a manifest.
+function normalizeEntries<T>(entries: T[]): T[] {
+  return entries.map((e) => normalize(e, true) as T);
 }
 
 // An unadvertised capability answers -32601; for a manifest, "exposes none" is
@@ -53,22 +55,22 @@ function byKey<T>(key: (item: T) => string) {
   };
 }
 
-export async function toolManifest(mcp: McpHarness): Promise<unknown> {
+export async function toolManifest(mcp: McpHarness) {
   const tools = await orEmpty(mcp.listTools());
   return normalizeEntries([...tools].sort(byKey((t) => t.name)));
 }
 
-export async function resourceManifest(mcp: McpHarness): Promise<unknown> {
+export async function resourceManifest(mcp: McpHarness) {
   const resources = await orEmpty(mcp.listResources());
   return normalizeEntries([...resources].sort(byKey((r) => r.uri)));
 }
 
-export async function promptManifest(mcp: McpHarness): Promise<unknown> {
+export async function promptManifest(mcp: McpHarness) {
   const prompts = await orEmpty(mcp.listPrompts());
   return normalizeEntries([...prompts].sort(byKey((p) => p.name)));
 }
 
-export async function capabilitiesManifest(mcp: McpHarness): Promise<unknown> {
+export async function capabilitiesManifest(mcp: McpHarness) {
   const [tools, resources, prompts] = await Promise.all([
     orEmpty(mcp.listTools()),
     orEmpty(mcp.listResources()),

@@ -17,8 +17,28 @@ export interface FakeAuthServer {
   close(): Promise<void>;
 }
 
+/**
+ * The first URL-shaped `aud` value, or undefined. JWT allows a bare string or an array, and
+ * only a URL is an RFC 8707 resource identifier - a plain-string audience is not one.
+ */
+function audienceUrl(aud: unknown): URL | undefined {
+  for (const value of Array.isArray(aud) ? aud : [aud]) {
+    if (typeof value !== "string") continue;
+    try {
+      return new URL(value);
+    } catch {
+      // not a resource identifier; keep looking
+    }
+  }
+  return undefined;
+}
+
 /** Spins up a real HTTP authorization server backed by its own RS256 keypair. */
-export async function fakeAuthServer(options?: { issuerPath?: string }): Promise<FakeAuthServer> {
+export async function fakeAuthServer(options?: {
+  issuerPath?: string;
+  /** Resource identifier this AS mints for. Set it and the verifier refuses other audiences. */
+  audience?: string;
+}): Promise<FakeAuthServer> {
   const { privateKey, publicJwk } = generateAuthKeys();
   const publicKey = createPublicKey({ key: publicJwk, format: "jwk" });
   const prefix = options?.issuerPath ?? "";
@@ -40,7 +60,11 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
   const served = await serveHandler({
     async fetch(req) {
       const { pathname } = new URL(req.url);
+      // RFC 8414 inserts the issuer path after the well-known segment rather than before it,
+      // which is the form the SDK requests. The suffix form is kept so 0.5.0 callers still work.
       if (
+        pathname === `/.well-known/oauth-authorization-server${prefix}` ||
+        pathname === `/.well-known/openid-configuration${prefix}` ||
         pathname === `${prefix}/.well-known/oauth-authorization-server` ||
         pathname === `${prefix}/.well-known/openid-configuration`
       ) {
@@ -119,8 +143,34 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
         throw new OAuthError(OAuthErrorCode.InvalidToken, `token could not be decoded: ${err}`);
       }
       const now = Math.floor(Date.now() / 1000);
-      if (typeof claims.exp !== "number" || claims.exp < now) {
+      if (typeof claims.exp !== "number") {
+        throw new OAuthError(OAuthErrorCode.InvalidToken, "token has no expiry");
+      }
+      // RFC 7519 puts exp as the moment on or after which the token must not be accepted.
+      if (claims.exp <= now) {
         throw new OAuthError(OAuthErrorCode.InvalidToken, "token expired");
+      }
+      if (typeof claims.nbf === "number" && claims.nbf > now) {
+        throw new OAuthError(OAuthErrorCode.InvalidToken, "token is not yet valid");
+      }
+      // Signature alone only proves this instance minted it. Requiring the issuer, rather than
+      // checking it when present, is what a real resource server does with a bearer token.
+      if (claims.iss !== issuer) {
+        throw new OAuthError(
+          OAuthErrorCode.InvalidToken,
+          `token issuer ${JSON.stringify(claims.iss)} is not ${issuer}`,
+        );
+      }
+      const resource = audienceUrl(claims.aud);
+      // MCP's confused-deputy defence lives here because the SDK has no hook for it: a real
+      // resource server refuses a token minted for somewhere else, so the double must too.
+      // JWT allows aud to be an array, and a match on any member is a match.
+      const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
+      if (options?.audience !== undefined && !audiences.includes(options.audience)) {
+        throw new OAuthError(
+          OAuthErrorCode.InvalidToken,
+          `token audience ${JSON.stringify(claims.aud)} is not ${options.audience}`,
+        );
       }
       const scope = typeof claims.scope === "string" ? claims.scope : "";
       return {
@@ -129,6 +179,9 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
         scopes: scope.length > 0 ? scope.split(/\s+/) : [],
         // requireBearerAuth rejects any token whose expiresAt is unset, so this must always be set.
         expiresAt: claims.exp,
+        // RFC 8707. requireBearerAuth only checks scopes and expiry, never the audience, so
+        // this is reported for a server that inspects it and enforced above via `audience`.
+        ...(resource ? { resource } : {}),
       };
     },
   };

@@ -18,7 +18,7 @@
 [![PRs](https://img.shields.io/github/issues-pr/nixrajput/mcp-vitest?label=PRs)][pulls]
 
 <strong>In-process &middot; both SDK majors &middot; both protocol revisions &middot; seven typed matchers &middot; one runtime dependency</strong><br>
-<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means across 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>146 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
+<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means across 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>160 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
 
 <br />
 
@@ -187,6 +187,8 @@ You do not pick. `mcpTest()` detects which SDK your server came from and routes 
 ## Testing OAuth-protected servers
 
 Pass `auth: { token }` or `auth: { headers }` to send credentials on every request, and reach for `mcp-vitest/auth` to test the other side of the handshake: a fake authorization server with a real RS256 keypair, plus assertions for the 401 challenge and PRM discovery a protected server has to get right. Details at [auth test doubles][docs-auth].
+
+Pass `fakeAuthServer({ audience })` when your server should refuse a token minted for a different resource - MCP's confused-deputy defence. Without it the verifier accepts any audience, reporting a URL-shaped one as `AuthInfo.resource` for a server that reads it, because `requireBearerAuth` checks only scopes and expiry. `auth` throws on a stdio or in-process server, which cannot send a credential at all.
 
 ## API
 

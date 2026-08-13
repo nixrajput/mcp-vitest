@@ -91,14 +91,20 @@ export async function serveHandler(handler: FetchHandler): Promise<ServedHandler
   if (address === null || typeof address === "string") {
     throw new Error("mcp-vitest: serveHandler could not determine the bound port");
   }
+  // Memoized so a second close resolves instead of rejecting ERR_SERVER_NOT_RUNNING, which
+  // teardown reaches routinely: an afterEach plus a finally in the test both call it.
+  let closed: Promise<void> | undefined;
   return {
     url: `http://127.0.0.1:${address.port}`,
-    close: () =>
-      new Promise<void>((resolve, reject) => {
-        // close() alone waits for open connections, and an MCP transport holds a
-        // stream open indefinitely, so the callback would never fire.
-        server.closeAllConnections();
+    close: () => {
+      closed ??= new Promise<void>((resolve, reject) => {
+        // close() first so nothing new is accepted, then destroy what is open: close() alone
+        // waits on live connections and an MCP transport holds a stream open indefinitely,
+        // so its callback would never fire. Reversing these leaves a window to connect.
         server.close((err) => (err ? reject(err) : resolve()));
-      }),
+        server.closeAllConnections();
+      });
+      return closed;
+    },
   };
 }
