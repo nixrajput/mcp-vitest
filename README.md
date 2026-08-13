@@ -18,7 +18,7 @@
 [![PRs](https://img.shields.io/github/issues-pr/nixrajput/mcp-vitest?label=PRs)][pulls]
 
 <strong>In-process &middot; both SDK majors &middot; both protocol revisions &middot; seven typed matchers &middot; one runtime dependency</strong><br>
-<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means across 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>143 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
+<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means across 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>145 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
 
 <br />
 
@@ -232,6 +232,9 @@ No - both lanes use the SDK's own client and transports. That is also why the la
 
 **Which protocol revision am I testing?**
 Whichever your lane negotiates, and it is reported rather than assumed. SDK v1 tops out at 2025-11-25; the v2 lane pins 2026-07-28. Asking a v1 server for the 2026 lifecycle fails with an explanation instead of silently testing the older era. See [lifecycles][docs-lifecycles].
+
+**Is the fake authorization server a mock?**
+No - it is a real HTTP server with its own RS256 keypair, serving real JWKS and token endpoints, so your `requireBearerAuth` wiring runs unchanged rather than being stubbed out. Two instances never trust each other's tokens, because each mints its own keypair.
 
 **Why is there a runtime dependency at all?**
 `toMatchOutputSchema` needs a validator, and v1 emits draft-07 while v2 emits 2020-12. `@cfworker/json-schema` is MIT with no transitive dependencies, and v1 users pay nothing extra because the MCP SDK already depends on it. Approximating validation in a testing tool would be worse than the dependency.
