@@ -94,14 +94,28 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
 
   const verifier: OAuthTokenVerifier = {
     async verifyAccessToken(token: string): Promise<AuthInfo> {
-      const [header, payload, signature] = token.split(".");
-      const verified = createVerify("RSA-SHA256")
-        .update(`${header}.${payload}`)
-        .verify(publicKey, signature, "base64url");
+      const segments = token.split(".");
+      if (segments.length !== 3) {
+        throw new OAuthError(OAuthErrorCode.InvalidToken, "token is not a well-formed JWT");
+      }
+      const [header, payload, signature] = segments;
+      let verified: boolean;
+      try {
+        verified = createVerify("RSA-SHA256")
+          .update(`${header}.${payload}`)
+          .verify(publicKey, signature, "base64url");
+      } catch (err) {
+        throw new OAuthError(OAuthErrorCode.InvalidToken, `token could not be verified: ${err}`);
+      }
       if (!verified) {
         throw new OAuthError(OAuthErrorCode.InvalidToken, "signature verification failed");
       }
-      const claims = decodeJwt(token).payload;
+      let claims: Record<string, unknown>;
+      try {
+        claims = decodeJwt(token).payload;
+      } catch (err) {
+        throw new OAuthError(OAuthErrorCode.InvalidToken, `token could not be decoded: ${err}`);
+      }
       const now = Math.floor(Date.now() / 1000);
       if (typeof claims.exp !== "number" || claims.exp < now) {
         throw new OAuthError(OAuthErrorCode.InvalidToken, "token expired");
@@ -130,7 +144,16 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: `grant_type=client_credentials&client_id=${encodeURIComponent(clientId)}`,
       });
-      const body = (await res.json()) as { access_token: string };
+      const bodyText = await res.text();
+      if (!res.ok) {
+        throw new Error(`clientCredentials: token endpoint returned ${res.status}: ${bodyText}`);
+      }
+      const body = JSON.parse(bodyText) as { access_token?: unknown };
+      if (typeof body.access_token !== "string") {
+        throw new Error(
+          `clientCredentials: token endpoint response has no access_token: ${bodyText}`,
+        );
+      }
       return body.access_token;
     },
     close: served.close,

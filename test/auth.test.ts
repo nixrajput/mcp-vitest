@@ -1,5 +1,5 @@
 import { discoverAuthorizationServerMetadata } from "@modelcontextprotocol/client";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { fakeAuthServer } from "../src/auth/fake-as.js";
 import { expectAuthChallenge, fetchPrm, hostClientMetadata } from "../src/auth/index.js";
 import { decodeJwt, generateAuthKeys, signJwt } from "../src/auth/jwt.js";
@@ -67,6 +67,34 @@ describe("fakeAuthServer", () => {
         iss: as.issuer,
         aud: "https://rs.example",
       });
+    } finally {
+      await as.close();
+    }
+  });
+
+  test("clientCredentials throws a diagnosable error when the token endpoint refuses", async () => {
+    const as = await fakeAuthServer();
+    try {
+      // The AS truly refuses an unsupported grant with 400, proving the endpoint's own contract.
+      const direct = await fetch(`${as.issuer}/token`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: "grant_type=authorization_code",
+      });
+      expect(direct.status).toBe(400);
+
+      // clientCredentials hardcodes grant_type=client_credentials, so its own request can
+      // never hit that refusal for real; stub the one fetch call to reach the new guards.
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
+      fetchSpy.mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "invalid_client" }), { status: 400 }),
+      );
+      await expect(as.clientCredentials()).rejects.toThrow(/400/);
+
+      fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify({ token_type: "Bearer" })));
+      await expect(as.clientCredentials()).rejects.toThrow(/access_token/);
+
+      fetchSpy.mockRestore();
     } finally {
       await as.close();
     }
@@ -236,6 +264,27 @@ describe("rejection cases", () => {
       await expect(
         mcpTest({ url: `${served.url}/mcp` }, { auth: { token: as.mintToken({ exp: 1 }) } }),
       ).rejects.toThrow();
+    } finally {
+      await served.close();
+      await as.close();
+    }
+  });
+
+  test("a malformed bearer token gives 401, not 500", async () => {
+    const as = await fakeAuthServer();
+    const served = await authedFor(as);
+    try {
+      for (const token of ["garbage", "a.b"]) {
+        const res = await fetch(`${served.url}/mcp`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "server/discover" }),
+        });
+        expect(res.status).toBe(401);
+      }
     } finally {
       await served.close();
       await as.close();

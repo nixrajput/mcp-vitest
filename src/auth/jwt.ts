@@ -24,7 +24,11 @@ export function signJwt(
 }
 
 export function decodeJwt(token: string) {
-  const [h, p] = token.split(".");
+  const parts = token.split(".");
+  if (parts.length !== 3) {
+    throw new Error(`decodeJwt: expected a 3-segment JWT, got ${parts.length} segment(s)`);
+  }
+  const [h, p] = parts;
   return {
     header: JSON.parse(Buffer.from(h, "base64url").toString()),
     payload: JSON.parse(Buffer.from(p, "base64url").toString()),
