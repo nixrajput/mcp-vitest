@@ -318,3 +318,35 @@ describe("auth assertions", () => {
     }
   });
 });
+
+describe("end-to-end authorization flow", () => {
+  test("the SDK client discovers metadata and exchanges for a token", async () => {
+    const as = await fakeAuthServer();
+    const served = await serveHandler(
+      createAuthedV2Handler({ verifier: as.verifier, issuer: as.issuer }),
+    );
+    const cimd = await hostClientMetadata({
+      client_name: "mcp-vitest tests",
+      redirect_uris: ["http://127.0.0.1:0/callback"],
+    });
+    try {
+      // The challenge is the discovery entry point a real client follows.
+      const challenge = await expectAuthChallenge(`${served.url}/mcp`);
+      const prm = await fetchPrm(challenge.prmUrl!);
+      expect(prm.authorization_servers).toContain(as.issuer);
+
+      const { discoverAuthorizationServerMetadata } = await import("@modelcontextprotocol/client");
+      const meta = await discoverAuthorizationServerMetadata(as.issuer);
+      expect(meta).toMatchObject({ client_id_metadata_document_supported: true });
+
+      // client_id is a CIMD URL, not a registered id: DCR is deprecated as of 2026-07-28.
+      const token = await as.clientCredentials(cimd.url);
+      const mcp = await mcpTest({ url: `${served.url}/mcp` }, { auth: { token } });
+      await expect(mcp).toHaveTool("echo");
+    } finally {
+      await cimd.close();
+      await served.close();
+      await as.close();
+    }
+  });
+});
