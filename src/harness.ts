@@ -59,6 +59,9 @@ async function collectPages<Page extends { nextCursor?: string }, Item>(
 
 export class McpHarness {
   // Required, not defaulted: a default registry is one the connection never reads.
+  // RawConnection already broke once at 0.4 (supports became required) for this
+  // undocumented audience; @internal is what lets it break again without a major.
+  /** @internal */
   constructor(
     readonly kind: ServerKind,
     private readonly conn: RawConnection,

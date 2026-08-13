@@ -67,3 +67,10 @@ describe.each([
     expect(JSON.stringify(messages)).toContain("Greet Ada");
   });
 });
+
+describe("McpServerInput no longer accepts anything", () => {
+  test("a number is a type error, and still throws at runtime", async () => {
+    // @ts-expect-error a number is not a server, a spec, or a factory
+    await expect(mcpTest(12345)).rejects.toThrow();
+  });
+});

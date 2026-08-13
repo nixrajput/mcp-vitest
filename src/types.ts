@@ -117,11 +117,14 @@ export function isUrlServerSpec(input: unknown): input is UrlServerSpec {
   return typeof url === "string" || url instanceof URL;
 }
 
+/** Any object: both SDK majors' server instances satisfy this, primitives do not. */
+type ServerLike = Record<string, unknown> | object;
+
 export type McpServerInput =
   | StdioServerSpec
   | UrlServerSpec
-  | unknown
-  | (() => unknown | Promise<unknown>);
+  | ServerLike
+  | (() => ServerLike | Promise<ServerLike>);
 
 export interface McpTestOptions {
   /** Auto-close via vitest onTestFinished when inside a test. Default true. */
