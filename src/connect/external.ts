@@ -90,14 +90,19 @@ export async function connectUrl(
 ): Promise<RawConnection> {
   const { Client, StreamableHTTPClientTransport } = await import("@modelcontextprotocol/client");
 
-  // `auth` wins on a key collision with the spec's own `headers`, so it must spread last.
+  // `auth` wins on a key collision with the spec's own `headers`, case-insensitively:
+  // Headers.set() replaces by name regardless of case, unlike a plain-object spread.
   const authHeaders =
     auth === undefined
       ? undefined
       : "token" in auth
         ? { Authorization: `Bearer ${auth.token}` }
         : auth.headers;
-  const headers = spec.headers || authHeaders ? { ...spec.headers, ...authHeaders } : undefined;
+  let headers: Headers | undefined;
+  if (spec.headers || authHeaders) {
+    headers = new Headers(spec.headers);
+    for (const [k, v] of Object.entries(authHeaders ?? {})) headers.set(k, v);
+  }
 
   const transport = new StreamableHTTPClientTransport(new URL(spec.url), {
     requestInit: headers ? { headers } : undefined,

@@ -184,4 +184,26 @@ describe("authenticated server", () => {
       await as.close();
     }
   });
+
+  test("auth.token wins over a same-name spec header regardless of case", async () => {
+    const [as, other] = [await fakeAuthServer(), await fakeAuthServer()];
+    const served = await serveHandler(
+      createAuthedV2Handler({ verifier: as.verifier, issuer: as.issuer }),
+    );
+    try {
+      const mcp = await mcpTest(
+        {
+          url: `${served.url}/mcp`,
+          // Wrong-signature token from a different AS; must be overridden, not merged.
+          headers: { authorization: `Bearer ${other.mintToken()}` },
+        },
+        { auth: { token: as.mintToken({ aud: `${served.url}/mcp` }) } },
+      );
+      await expect(mcp).toHaveTool("echo");
+    } finally {
+      await served.close();
+      await as.close();
+      await other.close();
+    }
+  });
 });
