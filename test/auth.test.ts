@@ -207,3 +207,74 @@ describe("authenticated server", () => {
     }
   });
 });
+
+describe("rejection cases", () => {
+  const authedFor = async (as: Awaited<ReturnType<typeof fakeAuthServer>>, scopes?: string[]) =>
+    serveHandler(
+      createAuthedV2Handler({ verifier: as.verifier, issuer: as.issuer, requiredScopes: scopes }),
+    );
+
+  test("a token signed by another authorization server is refused", async () => {
+    const [as, other] = [await fakeAuthServer(), await fakeAuthServer()];
+    const served = await authedFor(as);
+    try {
+      await expect(
+        mcpTest({ url: `${served.url}/mcp` }, { auth: { token: other.mintToken() } }),
+      ).rejects.toThrow();
+    } finally {
+      await served.close();
+      await as.close();
+      await other.close();
+    }
+  });
+
+  test("an expired token is refused", async () => {
+    const as = await fakeAuthServer();
+    const served = await authedFor(as);
+    try {
+      await expect(
+        mcpTest({ url: `${served.url}/mcp` }, { auth: { token: as.mintToken({ exp: 1 }) } }),
+      ).rejects.toThrow();
+    } finally {
+      await served.close();
+      await as.close();
+    }
+  });
+
+  test("a missing scope gives 403, not 401", async () => {
+    const as = await fakeAuthServer();
+    const served = await authedFor(as, ["admin"]);
+    try {
+      const res = await fetch(`${served.url}/mcp`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${as.mintToken({ scope: "read" })}`,
+        },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "server/discover" }),
+      });
+      expect(res.status).toBe(403);
+      expect(res.headers.get("www-authenticate") ?? "").toMatch(/insufficient_scope/);
+    } finally {
+      await served.close();
+      await as.close();
+    }
+  });
+
+  test("no token gives 401 whose challenge names the PRM document", async () => {
+    const as = await fakeAuthServer();
+    const served = await authedFor(as);
+    try {
+      const res = await fetch(`${served.url}/mcp`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "server/discover" }),
+      });
+      expect(res.status).toBe(401);
+      expect(res.headers.get("www-authenticate") ?? "").toMatch(/resource_metadata/);
+    } finally {
+      await served.close();
+      await as.close();
+    }
+  });
+});
