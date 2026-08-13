@@ -18,7 +18,7 @@
 [![PRs](https://img.shields.io/github/issues-pr/nixrajput/mcp-vitest?label=PRs)][pulls]
 
 <strong>In-process &middot; both SDK majors &middot; both protocol revisions &middot; seven typed matchers &middot; one runtime dependency</strong><br>
-<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means across 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>120 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
+<sub>A fresh server plus a full <code>initialize</code> handshake, per test, costs <strong>0.24ms on SDK v1 and 0.47ms on v2</strong> - means across 8,270 and 4,284 samples at &plusmn;2.3% and &plusmn;3.6%, reproducible with <code>npm run bench</code>. There is no subprocess and no socket to pay for. Also checkable: <strong>143 tests</strong> across the two SDK lanes, which connect over <em>different transports</em> and so are covered separately rather than assumed equivalent; the v2 lane <strong>pins the 2026-07-28 revision</strong>, which is what makes the two lanes cover different protocol eras instead of the same one twice; and every build is verified with <strong>publint</strong> and <strong>@arethetypeswrong/cli</strong>. <a href="https://github.com/nixrajput/mcp-vitest/actions/workflows/ci.yml">See the runs</a>.</sub>
 
 <br />
 
@@ -42,6 +42,7 @@
     - [Install](#install)
     - [Quickstart](#quickstart)
   - [Works with both SDK majors](#works-with-both-sdk-majors)
+  - [Testing OAuth-protected servers](#testing-oauth-protected-servers)
   - [API](#api)
   - [Is this for you](#is-this-for-you)
   - [Compared to](#compared-to)
@@ -114,6 +115,7 @@ Testing an MCP server usually means spawning a subprocess, picking a port, or ha
 - **A small harness** - tools, resources, and prompts with pagination followed for you, plus the raw SDK client as an escape hatch.
 - **Interaction doubles** - answer a server's sampling, elicitation, and roots requests from your test.
 - **External servers** - spawn one over stdio or point at a running URL; everything above works unchanged.
+- **OAuth test doubles** - send a bearer token or headers with `auth`, and drive the other side of the handshake with a fake authorization server backed by a real RS256 keypair.
 - **Lifecycle coverage** - run the same tests against the 2025 and 2026-07-28 protocol revisions.
 - **Regression safety** - snapshot manifests normalized so key order and absent optionals never churn them.
 - **Real call ergonomics** - progress callbacks, `AbortSignal` cancellation, per-call timeouts, and a notification collector with `waitFor`.
@@ -181,6 +183,10 @@ test("search tool works", async ({ mcp }) => {
 - **v2** (`@modelcontextprotocol/server`) connects over the SDK's in-process `handler.fetch` route.
 
 You do not pick. `mcpTest()` detects which SDK your server came from and routes to the matching transport; `mcp.kind` reports what it found. The same tests, matchers, and fixture work either way - including against [external servers](https://mcp-vitest.nixrajput.com/en/docs/api/external-servers), which report `'external'`. Which protocol revision each lane speaks is covered under [lifecycles](https://mcp-vitest.nixrajput.com/en/docs/api/lifecycles).
+
+## Testing OAuth-protected servers
+
+Pass `auth: { token }` or `auth: { headers }` to send credentials on every request, and reach for `mcp-vitest/auth` to test the other side of the handshake: a fake authorization server with a real RS256 keypair, plus assertions for the 401 challenge and PRM discovery a protected server has to get right. Details at [auth test doubles][docs-auth].
 
 ## API
 
@@ -290,6 +296,7 @@ mcp-vitest is MIT licensed and free to use, always. If it earns a place in your 
 [docs-api]: https://mcp-vitest.nixrajput.com/en/docs/api/mcp-test
 [docs-lifecycles]: https://mcp-vitest.nixrajput.com/en/docs/api/lifecycles
 [docs-external]: https://mcp-vitest.nixrajput.com/en/docs/api/external-servers
+[docs-auth]: https://mcp-vitest.nixrajput.com/en/docs/api/auth
 [npm]: https://www.npmjs.com/package/mcp-vitest
 [repo]: https://github.com/nixrajput/mcp-vitest
 [issues]: https://github.com/nixrajput/mcp-vitest/issues
