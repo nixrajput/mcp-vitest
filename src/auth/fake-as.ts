@@ -23,9 +23,6 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
   const publicKey = createPublicKey({ key: publicJwk, format: "jwk" });
   const prefix = options?.issuerPath ?? "";
 
-  // Codes are exchanged by a later task; kept here only so /authorize is honest about issuing them.
-  const authCodes = new Map<string, { expiresAt: number }>();
-
   let issuer = "";
   const metadataDoc = () => ({
     issuer,
@@ -61,8 +58,9 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
           );
           return Response.json(err.toResponseObject(), { status: 400 });
         }
+        // authorization_code is deliberately unimplemented, so this code proves only
+        // the redirect contract, not the grant - it is well-formed but not redeemable.
         const code = randomUUID();
-        authCodes.set(code, { expiresAt: Date.now() + 60_000 });
         const redirect = new URL(redirectUri);
         redirect.searchParams.set("code", code);
         redirect.searchParams.set("state", state);
