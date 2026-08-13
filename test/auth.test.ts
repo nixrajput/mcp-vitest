@@ -399,3 +399,27 @@ describe("end-to-end authorization flow", () => {
     }
   });
 });
+
+describe("metadata honesty", () => {
+  test("every advertised grant type is one the token endpoint accepts", async () => {
+    const as = await fakeAuthServer();
+    try {
+      const metadata = await discoverAuthorizationServerMetadata(as.issuer);
+      const advertised = metadata?.grant_types_supported ?? [];
+      expect(advertised.length).toBeGreaterThan(0);
+
+      const rejected: string[] = [];
+      for (const grant of advertised) {
+        const res = await fetch(`${as.issuer}/token`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({ grant_type: grant, client_id: "test-client" }),
+        });
+        if (!res.ok) rejected.push(grant);
+      }
+      expect(rejected).toEqual([]);
+    } finally {
+      await as.close();
+    }
+  });
+});

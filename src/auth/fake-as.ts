@@ -29,9 +29,11 @@ export async function fakeAuthServer(options?: { issuerPath?: string }): Promise
     authorization_endpoint: `${issuer}/authorize`,
     jwks_uri: `${issuer}/jwks.json`,
     token_endpoint: `${issuer}/token`,
-    grant_types_supported: ["client_credentials", "authorization_code"],
+    // Only what /token will actually redeem. /authorize still answers with a code, which is
+    // what response_types_supported describes, but that code is not exchangeable - so claiming
+    // the authorization_code grant here would send a client to a guaranteed 400.
+    grant_types_supported: ["client_credentials"],
     response_types_supported: ["code"],
-    code_challenge_methods_supported: ["S256"],
     client_id_metadata_document_supported: true,
   });
 
