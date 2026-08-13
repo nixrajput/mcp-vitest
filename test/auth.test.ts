@@ -1,6 +1,7 @@
 import { discoverAuthorizationServerMetadata } from "@modelcontextprotocol/client";
 import { describe, expect, test } from "vitest";
 import { fakeAuthServer } from "../src/auth/fake-as.js";
+import { expectAuthChallenge, fetchPrm, hostClientMetadata } from "../src/auth/index.js";
 import { decodeJwt, generateAuthKeys, signJwt } from "../src/auth/jwt.js";
 import { mcpTest } from "../src/index.js";
 import { serveHandler } from "../src/serve.js";
@@ -275,6 +276,45 @@ describe("rejection cases", () => {
     } finally {
       await served.close();
       await as.close();
+    }
+  });
+});
+
+describe("auth assertions", () => {
+  test("the challenge exposes a PRM URL naming the authorization server", async () => {
+    const as = await fakeAuthServer();
+    const served = await serveHandler(
+      createAuthedV2Handler({ verifier: as.verifier, issuer: as.issuer }),
+    );
+    try {
+      const challenge = await expectAuthChallenge(`${served.url}/mcp`);
+      expect(challenge.status).toBe(401);
+      expect(challenge.prmUrl).toBeDefined();
+      const prm = await fetchPrm(challenge.prmUrl!);
+      expect(JSON.stringify(prm.authorization_servers)).toContain(as.issuer);
+    } finally {
+      await served.close();
+      await as.close();
+    }
+  });
+
+  test("expectAuthChallenge throws when the endpoint does not challenge", async () => {
+    const served = await serveHandler({ fetch: async () => new Response("ok") });
+    try {
+      await expect(expectAuthChallenge(served.url)).rejects.toThrow(/expected 401/i);
+    } finally {
+      await served.close();
+    }
+  });
+
+  test("hostClientMetadata serves a CIMD document", async () => {
+    const hosted = await hostClientMetadata({ client_name: "mcp-vitest tests" });
+    try {
+      const res = await fetch(hosted.url);
+      expect(res.headers.get("content-type")).toMatch(/application\/json/);
+      expect((await res.json()).client_name).toBe("mcp-vitest tests");
+    } finally {
+      await hosted.close();
     }
   });
 });
