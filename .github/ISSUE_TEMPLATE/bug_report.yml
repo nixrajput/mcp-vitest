@@ -1,7 +1,7 @@
 name: Bug Report
 description: File a bug report for mcp-vitest
 title: '[Bug]: '
-labels: ['bug', 'triage']
+labels: ['bug']
 assignees: ['nixrajput']
 body:
   - type: markdown

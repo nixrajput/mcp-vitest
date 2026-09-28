@@ -24,10 +24,10 @@ Closes #<!-- issue number -->
 
 ## Verification checklist
 
-- [ ] `npm run lint` — 0 errors
-- [ ] `npm run ts:check` — clean
-- [ ] `npm test` — all tests pass (both SDK majors)
-- [ ] `npm run build` — succeeds (tsdown + publint + attw)
+- [ ] `npm run lint` - 0 errors
+- [ ] `npm run ts:check` - clean
+- [ ] `npm test` - all tests pass (both SDK majors)
+- [ ] `npm run build` - succeeds (tsdown + publint + attw)
 - [ ] `package.json` version bumped (required to merge) - and `CLIENT_INFO` in `src/types.ts` if so
 - [ ] Docs updated where applicable (README, inline comments)
 - [ ] Public API changed? Link the matching `mcp-vitest-docs` PR:
