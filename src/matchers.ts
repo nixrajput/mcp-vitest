@@ -184,15 +184,19 @@ interface McpHarnessMatchers {
   toHavePrompt(name: string): Promise<void>;
 }
 
+// vitest 5 returns R from each matcher: void, or Promise<void> under .resolves/.rejects. The augmentation
+// below cannot name R, so read it from a built-in matcher on the receiver. vitest 4 promisifies by itself.
+type MatcherReturn<A> = A extends { toEqual(expected: never): infer R } ? R : void;
+
 interface McpResultMatchers {
-  toHaveTextContent(expected: string | RegExp): void;
-  toHaveContent(partial: Record<string, unknown>): void;
-  toMatchOutputSchema(schema?: Record<string, unknown>): void;
-  toBeToolError(match?: string | RegExp): void;
+  toHaveTextContent<A>(this: A, expected: string | RegExp): MatcherReturn<A>;
+  toHaveContent<A>(this: A, partial: Record<string, unknown>): MatcherReturn<A>;
+  toMatchOutputSchema<A>(this: A, schema?: Record<string, unknown>): MatcherReturn<A>;
+  toBeToolError<A>(this: A, match?: string | RegExp): MatcherReturn<A>;
 }
 
 declare module "vitest" {
   // vitest 4 declares Matchers<T> and vitest 5 Matchers<R, T>. Only an augmentation with no type
-  // parameters merges with both, so the return types are fixed instead of taken from R.
+  // parameters merges with both.
   interface Matchers extends McpHarnessMatchers, McpResultMatchers {}
 }

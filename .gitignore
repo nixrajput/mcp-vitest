@@ -27,10 +27,10 @@ coverage/
 *.cert
 secrets/
 
-# Local databases
+# Local databases and their journal, WAL and shared-memory side files
 *.db
-*.db-journal
-*.db-shm
-*.db-wal
+*.db-*
 *.sqlite
+*.sqlite-*
 *.sqlite3
+*.sqlite3-*
