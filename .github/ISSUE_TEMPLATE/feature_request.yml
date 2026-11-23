@@ -1,7 +1,7 @@
 name: Feature Request
 description: Suggest an improvement or new feature for mcp-vitest
-title: '[Feature Request]: '
-labels: ['enhancement']
+title: "[Feature Request]: "
+labels: ["enhancement"]
 assignees:
   - nixrajput
 body:
@@ -34,7 +34,7 @@ body:
     attributes:
       label: Problem statement
       description: What problem does this feature solve? Why is it needed?
-      placeholder: 'When testing my server, I find it hard to ...'
+      placeholder: "When testing my server, I find it hard to ..."
     validations:
       required: true
 

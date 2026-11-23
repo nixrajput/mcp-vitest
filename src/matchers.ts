@@ -178,20 +178,21 @@ export function registerMatchers(): void {
   expect.extend(mcpMatchers);
 }
 
-interface McpHarnessMatchers<R> {
-  toHaveTool(name: string): Promise<R>;
-  toHaveResource(uri: string): Promise<R>;
-  toHavePrompt(name: string): Promise<R>;
+interface McpHarnessMatchers {
+  toHaveTool(name: string): Promise<void>;
+  toHaveResource(uri: string): Promise<void>;
+  toHavePrompt(name: string): Promise<void>;
 }
 
-interface McpResultMatchers<R> {
-  toHaveTextContent(expected: string | RegExp): R;
-  toHaveContent(partial: Record<string, unknown>): R;
-  toMatchOutputSchema(schema?: Record<string, unknown>): R;
-  toBeToolError(match?: string | RegExp): R;
+interface McpResultMatchers {
+  toHaveTextContent(expected: string | RegExp): void;
+  toHaveContent(partial: Record<string, unknown>): void;
+  toMatchOutputSchema(schema?: Record<string, unknown>): void;
+  toBeToolError(match?: string | RegExp): void;
 }
 
 declare module "vitest" {
-  // biome-ignore lint/suspicious/noExplicitAny: matcher augmentation is inherently loose
-  interface Matchers<T = any> extends McpHarnessMatchers<T>, McpResultMatchers<T> {}
+  // vitest 4 declares Matchers<T> and vitest 5 Matchers<R, T>. Only an augmentation with no type
+  // parameters merges with both, so the return types are fixed instead of taken from R.
+  interface Matchers extends McpHarnessMatchers, McpResultMatchers {}
 }
