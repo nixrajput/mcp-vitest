@@ -45,7 +45,7 @@ jobs:
           # grep implementations, and a wrong answer here either blocks every PR
           # or silently waives the gate. Arithmetic means the same thing anywhere.
           total=$(printf '%s\n' "$changed" | grep -c . || true)
-          infra=$(printf '%s\n' "$changed" | grep -cE '^(\.github/|\.claude/|\.githooks/|scripts/|bench/|(AGENTS|CLAUDE|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\.md$)' || true)
+          infra=$(printf '%s\n' "$changed" | grep -cE '^(\.github/|\.claude/|\.githooks/|scripts/|bench/|\.nvmrc$|(AGENTS|CLAUDE|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\.md$)' || true)
           echo "total=${total:-0} infra-only=${infra:-0}"
           if [ "${total:-0}" -gt "${infra:-0}" ]; then
             echo "ships=true" >> "$GITHUB_OUTPUT"
