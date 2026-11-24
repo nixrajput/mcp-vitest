@@ -1,6 +1,6 @@
 # AI Agent Guidelines
 
-Last updated: 2026-10-07
+Last updated: 2026-11-24
 
 ---
 
@@ -58,7 +58,7 @@ The two fixture servers share one contract on purpose. Every harness and matcher
 ### Conventions
 
 - Conventional Commits, imperative subject `<=` 50 chars, no trailing period, no `Co-Authored-By` or `Generated with` trailers.
-- Every PR that changes anything users receive bumps `package.json` version. CI gate `version bumped` enforces it. The gate waives itself when a PR touches only `.github`, `.claude`, `.githooks`, `scripts`, `bench`, or the governance docs. `README.md` is excluded from that waiver, because it ships in the tarball.
+- Every PR that changes anything users receive bumps `package.json` version. CI gate `version bumped` enforces it. The gate waives itself when a PR touches only `.github`, `.claude`, `.githooks`, `scripts`, `bench`, `.nvmrc`, or the governance docs. `README.md` is excluded from that waiver, because it ships in the tarball.
 - The PR title becomes the squash commit message.
 - `main` is protected: PR required, squash-only merges.
 - The README documents **shipped features only** - no roadmap, no plans.
