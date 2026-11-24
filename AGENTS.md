@@ -1,6 +1,6 @@
 # AI Agent Guidelines
 
-Last updated: 2026-08-08
+Last updated: 2026-11-24
 
 ---
 
@@ -14,7 +14,7 @@ Last updated: 2026-08-08
 | Build         | tsdown (CLI flags, not a config file) + publint + attw                              |
 | Tests         | vitest, both SDK majors exercised side by side                                      |
 | Lint / format | Biome - double quotes, semicolons, trailing commas, 100 columns                     |
-| Peers         | vitest (required); both MCP SDK majors (optional)                                   |
+| Peers         | vitest (required), both MCP SDK majors (optional)                                   |
 | Runtime deps  | one: `@cfworker/json-schema` (MIT, no transitive deps), backs `toMatchOutputSchema` |
 
 ### Layout
@@ -44,18 +44,21 @@ test/
   servers/stdio-server.mjs  runnable v1 stdio server, plain JS (spawned)
 ```
 
-The two fixture servers share one contract on purpose: every harness and matcher test runs against both, so a change that only works on one SDK major fails loudly. Two deliberate exceptions: `list-roots` is v1-only because roots is deprecated in the 2026 spec, and the interactive tools use different mechanisms per era - v1 pushes server-to-client requests, while v2 answers with `inputRequired()` and reads the reply from `ctx.mcpReq.inputResponses` on the client's retry.
+The two fixture servers share one contract on purpose. Every harness and matcher test runs against both, so a change that only works on one SDK major fails loudly. There are two deliberate exceptions:
+
+- `list-roots` is v1-only, because roots is deprecated in the 2026 spec.
+- The interactive tools use different mechanisms per era. v1 pushes server-to-client requests. v2 answers with `inputRequired()` and reads the reply from `ctx.mcpReq.inputResponses` on the client's retry.
 
 ### The checks
 
-`npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly these four in the `build` job, and repeats lint/typecheck/test on the Node 20 floor in a second job (tsdown itself needs >=22.18, so the floor job skips `build`). `.githooks/pre-push` runs them too (`git config core.hooksPath .githooks`).
+`npm run lint`, `npm run ts:check`, `npm test`, `npm run build`. CI runs exactly these four in the `build` job. A second job repeats lint/typecheck/test on the Node 20 floor. tsdown itself needs >=22.18, so the floor job skips `build`. `.githooks/pre-push` runs them too (`git config core.hooksPath .githooks`).
 
-`.githooks/pre-push` also prints an inform-only report: per-file size deltas against the published version, npm/Bundlephobia bundle metrics (minified, gzipped, download times, dependency composition), benchmarks, knip, and coverage. It never blocks a push (`|| true`), skips bench and coverage when no `src/`, `test/`, `bench/`, or `package.json` file changed, and uses a short bench sample. `npm run report` runs the full-fidelity version, and CI attaches it to every PR summary. Size budgets are deliberately deferred until the feature surface stops moving; see the roadmap's carried items.
+`.githooks/pre-push` also prints an inform-only report. It covers per-file size deltas against the published version, npm/Bundlephobia bundle metrics (minified, gzipped, download times, dependency composition), benchmarks, knip, and coverage. It never blocks a push (`|| true`), skips bench and coverage when no `src/`, `test/`, `bench/`, or `package.json` file changed, and uses a short bench sample. `npm run report` runs the full-fidelity version, and CI attaches it to every PR summary. Size budgets are deliberately deferred until the feature surface stops moving. See the roadmap's carried items.
 
 ### Conventions
 
 - Conventional Commits, imperative subject `<=` 50 chars, no trailing period, no `Co-Authored-By` or `Generated with` trailers.
-- Every PR that changes anything users receive bumps `package.json` version - CI gate `version bumped` enforces it. The gate waives itself when a PR touches only `.github`, `.claude`, `.githooks`, `scripts`, `bench`, or the governance docs; `README.md` is excluded from that waiver because it ships in the tarball.
+- Every PR that changes anything users receive bumps `package.json` version. CI gate `version bumped` enforces it. The gate waives itself when a PR touches only `.github`, `.claude`, `.githooks`, `scripts`, `bench`, `.nvmrc`, or the governance docs. `README.md` is excluded from that waiver, because it ships in the tarball.
 - The PR title becomes the squash commit message.
 - `main` is protected: PR required, squash-only merges.
 - The README documents **shipped features only** - no roadmap, no plans.
@@ -67,90 +70,186 @@ The two fixture servers share one contract on purpose: every harness and matcher
 
 > These apply to EVERY interaction, automatically.
 
+### Writing Style
+
+Never use em-dashes (`—`). Always use a hyphen (`-`) instead - in code comments, commit messages, PR/issue text, chat responses, and any file content.
+
+#### Plain technical English (adapted from ASD-STE100)
+
+Write text that has exactly one reading. The goal is to remove ambiguity, not words. Stop when a sentence cannot be misread, not when it is shortest.
+
+**Everywhere** (chat, commits, PR and issue text, docs, code comments). Aim for about 80% of strict STE. Follow these rules, but treat the word limits as targets and skip the strict-mode extras.
+
+- Active voice. Name who acts: "The job deletes the file", not "The file is deleted". Use passive only when the actor is unknown or irrelevant.
+- One idea per sentence. Aim for 20 words or fewer in instructions and 25 or fewer in descriptions.
+- No semicolons in prose. Where a semicolon or a dash would join two clauses, prefer two sentences.
+- Use a numbered or bulleted list for 3+ steps, conditions or options. Keep one topic and 6 sentences max per paragraph.
+- One name per thing. Pick one term (e.g. "user" or "account", not both) and keep it for the whole text. Rotating synonyms makes the reader ask if they are different things.
+- One meaning and one part of speech per word. If "store" names a storage layer, do not also use it to mean "save".
+- Plain words, not formal ones: use, start, before, about, to, make sure - not utilize, leverage, commence, prior to, approximately, in order to, ensure.
+- Verbs, not nominalizations: "analyze the log", not "perform an analysis of the log".
+- Plain verbs, not soft phrasal verbs: start, contact, read, begin - not spin up, reach out, dive into, kick off.
+- No marketing adjectives (seamless, robust, powerful, blazing-fast, effortless). Delete them or give the number that earns the claim.
+- No hedge stacking ("it is worth noting that this may potentially help"). State the claim or cut it.
+- Keep subjects, verbs and articles. Do not drop words to save space ("Files not backed up will be lost" - which files?).
+- Noun stacks of 3 words max: "the handler that sets task-queue priority", not "the agent task queue priority handler".
+- Define a domain term once, on first use, if it is not common English.
+- Label a risky step WARNING (irreversible: data loss, money, production, real users) or CAUTION (recoverable). Give the command first, then the risk: "WARNING: Do not run this on production. It deletes all sessions."
+
+**Keep modality. Confidence is content.** "May have failed" never becomes "failed". "Could be caused by X" never becomes "X is the cause". Never upgrade a hedge to a fact, and never add a cause, frequency or mechanism the evidence does not show. Never drop a condition, exception or scope qualifier to shorten a sentence. If a rule would cost precision, keep the longer wording. When you rewrite someone else's text, name any content you added.
+
+**Strict mode** applies to text that an agent or program reads with no human to resolve ambiguity. That includes AGENTS.md, CLAUDE.md, skills, agent and subagent prompts, tool descriptions, hook output, error and log messages, and reports that one agent writes for another.
+
+- The 20/25-word limits are hard caps. One instruction per sentence, unless two actions happen at the same time.
+- Write instructions in the imperative. Keep descriptions as descriptions. Do not turn a fact into a command.
+- Put the condition first: "If the app is uninstalled, skip the sync." Do not put it at the end.
+- Use one verb for one action in the whole file. Do not mix "check", "verify" and "confirm" for the same action. If "check" is already a noun in the file (a CI check), use "verify" for the action.
+- Use simple tenses by default: "the job completed", not "the job is completing". Keep a compound form only when it carries meaning: "is running" (still in progress), "has completed" (done and available now), "may have failed" (uncertain). When tense and modality conflict, modality wins.
+
+**Exempt:** creative or persuasive copy, code, and quoted or verbatim text (error strings, the user's words).
+
+**Pick the format before the words.** Some explanations cover a flow, a structure or 3+ interacting parts. For these, draw a diagram (ASCII in chat) or offer an HTML page instead of a long block of text.
+
+These rules fix form, not substance. Leave text that already follows them unchanged. If a paragraph has nothing to say, delete it instead of polishing it.
+
 ### Working Discipline
 
-> Behavioral guidelines to reduce common LLM coding mistakes. Bias toward caution over speed; for trivial tasks, use judgment.
+#### 1. Understand Before Acting
 
-#### 1. Think Before Coding
+**Reach 95% certainty about what the user wants before you write code, a plan or a design. Below that bar, ask.**
 
-**Don't assume. Don't hide confusion. Surface tradeoffs.**
+**The 95% gate**
 
-Before implementing:
+- Before you start, state in one or two concrete sentences what "done" looks like. If you cannot, you are below the bar. Ask.
+- Ask all clarifying questions in one batch, up front. Do not spread them across turns, one question at a time.
+- Ask only questions whose answers change the outcome. If an answer would not change what you build, pick the sensible default, name it and continue.
+- A question costs one message. Building the wrong thing costs the whole implementation. Never trade a question for a guess.
+- Skip the gate only for trivial, reversible, unambiguous work: a typo, a rename, a one-line fix, a command given verbatim.
+- The gate applies BEFORE you start. When the task is clear, execute it end to end. Do not stop mid-flow to ask approval for steps that the request already implies.
 
-- Read existing code and understand patterns before proposing changes.
-- State your assumptions explicitly. If uncertain, ask.
-- If multiple interpretations exist, present them - don't pick silently.
-- If a simpler approach exists, say so. Push back when warranted.
-- If something is unclear, stop. Name what's confusing. Ask.
+**Map the blast radius**
+
+- Before you start, find every place that depends on what you will change. The request names one surface. Shared logic, shared data and shared formats usually feed several.
+- Trace it. Do not guess. Grep every caller, reader, subscriber and consumer of the function, field, rule, default, format or schema that you change.
+- Look past the screen in front of you. Look for:
+  - other views of the same data
+  - exports and reports
+  - background jobs and schedulers
+  - public APIs and webhooks
+  - caches and derived or stored state
+  - permissions, analytics, tests and docs
+- Give the user the list of dependents that you found. Ask which of them must change with your change, and which must keep their current behavior exactly. Ask this in the same up-front batch as your other questions, not after you start.
+- If you cannot check what a consumer expects, say so. Do not silently change its behavior, and do not silently keep it.
+- Record the affected areas in the plan, ticket and PR description. Reviewers and QA use this record to know what to test again.
+- A map of the impact does not give permission to widen the change. Rule 3 still applies: report what is affected, and edit only what the user's answer says to edit.
+
+**No unverified assumptions**
+
+- An assumption is anything without evidence: you did not read it, did not run it, and nobody told you. Treat it as unknown, not as "probably fine".
+- Valid evidence is:
+  - the actual code, schema, config or migration
+  - a command that you ran, and its output
+  - docs for the exact version in use
+  - the user's own words
+- These are NOT evidence: a file or function name, "this is how these projects usually work", or memory of a similar codebase.
+- Read the real implementation of anything that you call, extend, override or depend on. A signature or a name does not show behavior.
+- Treat second-hand claims as unverified: stale comments, outdated docs, a subagent's summary, a review bot's finding, an old ticket. Check each claim against the current code before you act on it.
+- If you must continue without evidence, say so openly: "Assuming X because I could not check Y." Never leave an assumption silent.
+- Never call something done, fixed, working or passing unless you ran the check and saw it pass. Show the output.
+
+**Before you implement**
+
+- Read the existing code and follow its patterns. Do not invent new ones.
+- If the request has more than one reasonable reading, present all readings. Do not silently pick one.
+- If a simpler approach exists, say so. Disagree when you have a reason.
+- If something is unclear, stop and name exactly what is unclear.
 
 #### 2. Simplicity First
 
-**Minimum code that solves the problem. Nothing speculative.**
+**Write the minimum code that solves the problem. Write nothing speculative.**
 
-- No features beyond what was asked.
-- No abstractions for single-use code.
-- No "flexibility" or "configurability" that wasn't requested.
+- No features beyond the request.
+- No abstractions for code with one use.
+- No "flexibility" or "configurability" that the user did not request.
 - No error handling for impossible scenarios.
-- If you write 200 lines and it could be 50, rewrite it.
+- If you write 200 lines and 50 lines can do the same work, rewrite it.
 
 Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
 
 #### 3. Surgical Changes
 
-**Touch only what you must. Clean up only your own mess.**
+**Change only what you must. Remove only the mess that you made.**
 
-When editing existing code:
+When you edit existing code:
 
-- Don't "improve" adjacent code, comments, or formatting.
-- Don't refactor things that aren't broken.
-- Match existing style, even if you'd do it differently.
-- If you notice unrelated dead code, mention it - don't delete it.
+- Do not "improve" adjacent code, comments or formatting.
+- Do not refactor code that works.
+- Match the existing style, even if you would write it differently.
+- If you see unrelated dead code, mention it. Do not delete it.
 
 When your changes create orphans:
 
-- Remove imports/variables/functions that YOUR changes made unused.
-- Don't remove pre-existing dead code unless asked.
+- Remove the imports, variables and functions that YOUR changes made unused.
+- Do not remove dead code that existed before your change, unless the user asks.
 
-The test: Every changed line should trace directly to the user's request.
+The test: every changed line traces directly to the user's request.
+
+#### 3a. Code Comments
+
+**Comment the why and the how, never the what. Most code needs no comment.**
+
+- Code shows what it does. Add a comment only when the why or the how is hard to follow. Examples: non-obvious logic, a deliberate tradeoff, or a constraint that the code cannot show.
+- Do NOT add routine comments on methods, classes, variables, props, components or PropTypes. Prop-type and type comments are noise, except for a special case or an explicit user request.
+- Write a comment only if it does one of these:
+  - prevents a real misunderstanding
+  - marks significant or surprising behavior
+  - documents a cross-file side effect: a hook, mutation or edit in one file that changes another file. These cross-file couplings ARE worth a comment.
+- Length: 3 lines max, 120 characters max per line. Prefer one line. If one line cannot hold it, ask yourself if the comment is necessary.
+- When you edit existing code, do not add comments that the user did not ask for just to "explain" your change. The diff and the commit message carry that.
+- Such comments are the most common drift. A one-line fix does NOT need a comment that says why it is correct or what the old code did wrong.
+- Default to ZERO comments on a change. The exceptions are a genuine cross-file coupling, a non-obvious constraint, or surprising behavior that would confuse a future reader. When in doubt, add no comment.
+- Comments are for non-obvious handling in a method, class, library integration or cross-file side effect. They are not for variables, props, local assignments, or a restatement of what the code plainly does.
 
 #### 4. Goal-Driven Execution
 
-**Define success criteria. Loop until verified.**
+**Define success criteria. Repeat until the check passes.**
 
-Transform tasks into verifiable goals:
+Change each task into a goal that you can check:
 
-- "Add validation" -> "Write tests for invalid inputs, then make them pass"
-- "Fix the bug" -> "Write a test that reproduces it, then make it pass"
-- "Refactor X" -> "Ensure tests pass before and after"
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Make sure tests pass before and after"
 
 For multi-step tasks, state a brief plan:
 
 ```
-1. [Step] -> verify: [check]
-2. [Step] -> verify: [check]
-3. [Step] -> verify: [check]
+1. [Step] → check: [how]
+2. [Step] → check: [how]
+3. [Step] → check: [how]
 ```
 
-Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
+Strong success criteria let you repeat the loop without help. Weak criteria ("make it work") need constant clarification.
 
 #### 5. Report What Was Done
 
-After completing work, state what changed and why - not just that it's done.
+When the work is complete, state what changed and why. Do not only say that it is done.
 
 ---
 
-**These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+**These guidelines work if** diffs have fewer unnecessary changes, fewer rewrites come from overcomplication, and clarifying questions come before implementation, not after mistakes.
+
+---
 
 ### Multi-Agent Safety Rules
 
-- **Never** create/apply/drop git stash entries unless explicitly requested
-- **Never** edit files in `node_modules/`, `vendor/`, or other dependency directories
-- **Always** work on a dedicated branch when running concurrent agents
-- **Never** force-push or rebase shared branches from an agent session
-- **Verify** no other agent is modifying the same files before making changes
+- **Never** create, apply or drop git stash entries, unless the user explicitly asks.
+- **Never** edit files in `node_modules/`, `vendor/` or other dependency directories.
+- **Always** work on a dedicated branch when concurrent agents run.
+- **Never** force-push or rebase shared branches from an agent session.
+- **Check** that no other agent is changing the same files before you change them.
 
 ### Release Safety
 
-- **Never** merge a PR or publish to npm without explicit approval. Merging `main` triggers the tag, the GitHub Release, and `npm publish` via OIDC in one shot, and a published version number can never be reused.
+- WARNING: **Never** merge a PR or publish to npm without explicit approval. A merge to `main` triggers the tag, the GitHub Release, and `npm publish` via OIDC in one shot. A published version number can never be reused.
 
 ---
