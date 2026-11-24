@@ -126,8 +126,8 @@ Testing an MCP server usually means spawning a subprocess, picking a port, or ha
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) `>=20`
-- [vitest](https://vitest.dev/) `>=3.2` in your project
-- An MCP server built on either SDK major - `@modelcontextprotocol/sdk` `>=1.10`, or `@modelcontextprotocol/server` + `/client` `^2.0`. Both are optional peers, so you install only the one you use.
+- [vitest](https://vitest.dev/) `^4.1.12` or `^5.0.3` in your project
+- An MCP server built on either SDK major - `@modelcontextprotocol/sdk` `^1.32`, or `@modelcontextprotocol/server` + `/client` `^2.3`. Both are optional peers, so you install only the one you use.
 - ESM only, with no CJS build
 
 ### Install
@@ -211,7 +211,7 @@ Migrating from an earlier version? See [the migration notes](https://mcp-vitest.
 - want an interactive debugger rather than automated tests. [MCP Inspector](https://github.com/modelcontextprotocol/inspector) is the right tool for poking at a server by hand.
 - are not on vitest. The matchers and fixture are vitest-native; nothing here ports to jest without rewriting.
 - only need to check that a process starts. A shell script is cheaper.
-- are on SDK v1 below 1.10, or need a CJS build. This is ESM only.
+- are on SDK v1 below 1.32, or need a CJS build. This is ESM only.
 
 ## Compared to
 

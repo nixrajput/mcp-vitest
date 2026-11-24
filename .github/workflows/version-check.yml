@@ -15,16 +15,18 @@ jobs:
     name: version bumped
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0 # need the base branch to diff the version
           persist-credentials: false
       - name: Read versions
         id: v
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          git fetch --no-tags --depth=1 origin "${{ github.base_ref }}"
+          git fetch --no-tags --depth=1 origin "$BASE_REF"
           pr=$(jq -r .version package.json)
-          base=$(git show "origin/${{ github.base_ref }}:package.json" | jq -r .version)
+          base=$(git show "origin/$BASE_REF:package.json" | jq -r .version)
           echo "pr=$pr" >> "$GITHUB_OUTPUT"
           echo "base=$base" >> "$GITHUB_OUTPUT"
       # Deliberately NOT paths-ignore on the trigger: this job is a required check,
@@ -34,14 +36,16 @@ jobs:
       # absent on purpose because it ships inside the tarball.
       - name: Does this PR change anything users receive
         id: scope
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          changed=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD")
+          changed=$(git diff --name-only "origin/$BASE_REF...HEAD")
           echo "changed files:"; printf '%s\n' "$changed" | sed 's/^/  /'
           # Counted, not `grep -qv`: the inverted-match exit code varies between
           # grep implementations, and a wrong answer here either blocks every PR
           # or silently waives the gate. Arithmetic means the same thing anywhere.
           total=$(printf '%s\n' "$changed" | grep -c . || true)
-          infra=$(printf '%s\n' "$changed" | grep -cE '^(\.github/|\.claude/|\.githooks/|scripts/|bench/|(AGENTS|CLAUDE|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\.md$)' || true)
+          infra=$(printf '%s\n' "$changed" | grep -cE '^(\.github/|\.claude/|\.githooks/|scripts/|bench/|\.nvmrc$|(AGENTS|CLAUDE|CONTRIBUTING|CODE_OF_CONDUCT|SECURITY)\.md$)' || true)
           echo "total=${total:-0} infra-only=${infra:-0}"
           if [ "${total:-0}" -gt "${infra:-0}" ]; then
             echo "ships=true" >> "$GITHUB_OUTPUT"
@@ -66,7 +70,7 @@ jobs:
           # semver, not `sort -V`: sort -V ranks 1.0.0-rc.1 above 1.0.0, which
           # would block an rc-to-final promotion and accept a backwards move to
           # a prerelease of an already-released version.
-          if ! npx --yes semver -r ">$BASE" "$PR" >/dev/null 2>&1; then
+          if ! npx --yes semver@7.8.6 -r ">$BASE" "$PR" >/dev/null 2>&1; then
             echo "::error::package.json version $PR does not rank above base $BASE (semver); it must move forward."
             exit 1
           fi
