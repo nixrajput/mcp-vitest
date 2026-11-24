@@ -39,7 +39,7 @@ jobs:
 
   # package.json declares engines.node >=20, so the floor has to be exercised.
   # Kept as its own job rather than a matrix on `build`: a matrix would rename
-  # the check to "build (24)" and break the required status check on main.
+  # the check to "build (26)" and break the required status check on main.
   build-node-floor:
     name: build (node 20 floor)
     runs-on: ubuntu-latest
